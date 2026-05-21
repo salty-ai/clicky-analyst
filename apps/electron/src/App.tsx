@@ -5,11 +5,14 @@ import { DEFAULT_SETTINGS, type PiksySettings, type PiksyVoiceState } from "./fe
 import { CursorOverlay } from "./features/overlay/CursorOverlay";
 import { ResponseOverlay } from "./features/overlay/ResponseOverlay";
 import { BrowserAssemblyStreamingDictationSession } from "./features/dictation/assemblyAiStreaming";
-import { BrowserTtsClient } from "./features/tts/ttsClient";
+// TTS temporarily disabled.
+// import { BrowserTtsClient } from "./features/tts/ttsClient";
 import { isElectronBridgeAvailable, piksyBridge } from "./piksyBridge";
 
 const BUDDY_CURSOR_OFFSET = { x: 35, y: 25 };
 const TARGET_CURSOR_OFFSET = { x: -7, y: -2 };
+const POINT_TARGET_DWELL_MS = 1200;
+const POINTING_STEP_DELAY_MS = 1700;
 
 function buddyPointFromCursor(point: { x: number; y: number }) {
   return {
@@ -44,8 +47,11 @@ export function App() {
   const cursorPointRef = useRef(cursorPoint);
   const buddyPointRef = useRef(buddyPoint);
   const isNavigatingRef = useRef(false);
+  const navigationRunRef = useRef(0);
+  const navigationFrameRef = useRef<number | null>(null);
+  const navigationTimeoutRef = useRef<number | null>(null);
   const dictationSessionRef = useRef<BrowserAssemblyStreamingDictationSession | null>(null);
-  const ttsClientRef = useRef(new BrowserTtsClient());
+  // const ttsClientRef = useRef(new BrowserTtsClient());
   const settingsRef = useRef(settings);
 
   const setBuddyPoint = (point: { x: number; y: number }) => {
@@ -88,6 +94,17 @@ export function App() {
       setResponseText(transcript);
     });
     const unsubscribePoint = piksyBridge.overlay.onPointChanged((target) => {
+      navigationRunRef.current += 1;
+      const navigationRun = navigationRunRef.current;
+      if (navigationFrameRef.current !== null) {
+        window.cancelAnimationFrame(navigationFrameRef.current);
+        navigationFrameRef.current = null;
+      }
+      if (navigationTimeoutRef.current !== null) {
+        window.clearTimeout(navigationTimeoutRef.current);
+        navigationTimeoutRef.current = null;
+      }
+
       setNavigationBubbleText(target.label);
       setVoiceState("idle");
 
@@ -112,12 +129,20 @@ export function App() {
         setBuddyPoint(nextPoint);
         setBuddyRotationDegrees(0);
         setBuddyScale(1 + Math.sin(progress * Math.PI) * 0.3);
+        if (navigationRun !== navigationRunRef.current) {
+          return;
+        }
         if (progress < 1) {
-          window.requestAnimationFrame(flyToTarget);
+          navigationFrameRef.current = window.requestAnimationFrame(flyToTarget);
           return;
         }
 
-        window.setTimeout(() => {
+        navigationFrameRef.current = null;
+        navigationTimeoutRef.current = window.setTimeout(() => {
+          navigationTimeoutRef.current = null;
+          if (navigationRun !== navigationRunRef.current) {
+            return;
+          }
           const returnStart = end;
           const returnEnd = buddyPointFromCursor(cursorPointRef.current);
           const returnDistance = Math.hypot(returnEnd.x - returnStart.x, returnEnd.y - returnStart.y);
@@ -135,8 +160,11 @@ export function App() {
             setBuddyPoint(nextPoint);
             setBuddyRotationDegrees(0);
             setBuddyScale(1 + Math.sin(returnProgress * Math.PI) * 0.3);
+            if (navigationRun !== navigationRunRef.current) {
+              return;
+            }
             if (returnProgress < 1) {
-              window.requestAnimationFrame(flyBack);
+              navigationFrameRef.current = window.requestAnimationFrame(flyBack);
               return;
             }
             setNavigationBubbleText("");
@@ -144,13 +172,14 @@ export function App() {
             setBuddyRotationDegrees(0);
             setBuddyScale(1);
             setBuddyPoint(buddyPointFromCursor(cursorPointRef.current));
+            navigationFrameRef.current = null;
           };
 
-          window.requestAnimationFrame(flyBack);
-        }, 1200);
+          navigationFrameRef.current = window.requestAnimationFrame(flyBack);
+        }, POINT_TARGET_DWELL_MS);
       };
 
-      window.requestAnimationFrame(flyToTarget);
+      navigationFrameRef.current = window.requestAnimationFrame(flyToTarget);
     });
     const unsubscribeVoiceState = piksyBridge.app.onVoiceStateChanged((nextVoiceState) => {
       setVoiceState(nextVoiceState);
@@ -159,6 +188,13 @@ export function App() {
       }
     });
     return () => {
+      navigationRunRef.current += 1;
+      if (navigationFrameRef.current !== null) {
+        window.cancelAnimationFrame(navigationFrameRef.current);
+      }
+      if (navigationTimeoutRef.current !== null) {
+        window.clearTimeout(navigationTimeoutRef.current);
+      }
       unsubscribeTranscript?.();
       unsubscribePoint?.();
       unsubscribeVoiceState?.();
@@ -173,7 +209,7 @@ export function App() {
     let isDisposed = false;
     const unsubscribeVoiceState = piksyBridge.app.onVoiceStateChanged((nextVoiceState) => {
       if (nextVoiceState === "listening") {
-        ttsClientRef.current.stop();
+        // ttsClientRef.current.stop();
         dictationSessionRef.current?.cancel();
         const session = new BrowserAssemblyStreamingDictationSession({
           serverUrl: settingsRef.current.serverUrl,
@@ -223,7 +259,7 @@ export function App() {
             setResponseText(response.spokenText || response.text);
             if (response.pointingSequence.length === 0) {
               piksyBridge.app.setVoiceState("responding");
-              await ttsClientRef.current.speak(settingsRef.current.serverUrl, response.spokenText || response.text);
+              // await ttsClientRef.current.speak(settingsRef.current.serverUrl, response.spokenText || response.text);
               piksyBridge.app.setVoiceState("idle");
               return;
             }
@@ -231,11 +267,11 @@ export function App() {
             for (const step of response.pointingSequence) {
               piksyBridge.app.setVoiceState("idle");
               await piksyBridge.overlay.pointAt(step.point);
-              await new Promise((resolve) => window.setTimeout(resolve, 350));
+              await new Promise((resolve) => window.setTimeout(resolve, POINTING_STEP_DELAY_MS));
               if (step.speech.trim()) {
                 piksyBridge.app.setVoiceState("responding");
                 setResponseText(step.speech);
-                await ttsClientRef.current.speak(settingsRef.current.serverUrl, step.speech);
+                // await ttsClientRef.current.speak(settingsRef.current.serverUrl, step.speech);
               }
             }
             piksyBridge.app.setVoiceState("idle");
@@ -254,7 +290,7 @@ export function App() {
       isDisposed = true;
       dictationSessionRef.current?.cancel();
       dictationSessionRef.current = null;
-      ttsClientRef.current.stop();
+      // ttsClientRef.current.stop();
       unsubscribeVoiceState?.();
     };
   }, [windowType]);
