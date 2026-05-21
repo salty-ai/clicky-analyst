@@ -14,6 +14,7 @@
     "electron/native/bin/**"
   ],
   mac: {
+    icon: "build/icon.icns",
     category: "public.app-category.productivity",
     extendInfo: {
       NSMicrophoneUsageDescription: "Piksy uses the microphone for push-to-talk voice dictation."
@@ -27,6 +28,7 @@
     hardenedRuntime: true
   },
   win: {
+    icon: "build/icon.ico",
     target: [
       { target: "nsis", arch: ["x64"] }
     ]
