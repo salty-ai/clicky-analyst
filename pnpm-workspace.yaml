@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  sharp: true
+  workerd: true
+catalog:
+  dotenv: ^17.2.2
+  zod: ^4.1.13
+  typescript: ^6
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@4.20260520.1'

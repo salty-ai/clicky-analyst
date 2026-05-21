@@ -1,0 +1,7 @@
+name = "server"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+GEMINI_TTS_MODEL = "gemini-3.1-flash-tts-preview"
+GEMINI_TTS_VOICE = "Kore"

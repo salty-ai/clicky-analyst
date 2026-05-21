@@ -1,0 +1,35 @@
+{
+  appId: "app.piksy.desktop",
+  productName: "Piksy",
+  directories: {
+    output: "release"
+  },
+  files: [
+    "dist/**",
+    "dist-electron/**",
+    "electron/native/bin/**",
+    "package.json"
+  ],
+  asarUnpack: [
+    "electron/native/bin/**"
+  ],
+  mac: {
+    category: "public.app-category.productivity",
+    extendInfo: {
+      NSMicrophoneUsageDescription: "Piksy uses the microphone for push-to-talk voice dictation."
+    },
+    target: [
+      { target: "dmg", arch: ["arm64", "x64"] },
+      { target: "zip", arch: ["arm64", "x64"] }
+    ],
+    entitlements: "build/entitlements.mac.plist",
+    entitlementsInherit: "build/entitlements.mac.inherit.plist",
+    hardenedRuntime: true
+  },
+  win: {
+    target: [
+      { target: "nsis", arch: ["x64"] }
+    ]
+  },
+  linux: null
+}
