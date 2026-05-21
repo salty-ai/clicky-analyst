@@ -32,7 +32,9 @@ function createTray(): void {
   const icon = nativeImage.createFromBuffer(Buffer.from(TRAY_ICON_PNG_BASE64, "base64"));
   icon.setTemplateImage(process.platform === "darwin");
   tray = new Tray(icon);
-  tray.setTitle(process.platform === "darwin" ? "Piksy" : "");
+  if (process.platform !== "darwin") {
+    tray.setTitle("");
+  }
   tray.setToolTip("Piksy");
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -108,6 +110,7 @@ function startShortcutMonitorIfNeeded(): void {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   initializeWindowLifecycle();
   await prepareNativePermissions();
   registerIpcHandlers();
