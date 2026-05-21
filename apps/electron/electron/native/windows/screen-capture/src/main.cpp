@@ -1,11 +1,13 @@
 #include <windows.h>
+#include <gdiplus.h>
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <vector>
+
+#pragma comment(lib, "gdiplus.lib")
 
 static const char* BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -28,11 +30,6 @@ static std::string base64Encode(const std::vector<unsigned char>& data) {
         output.push_back('=');
     }
     return output;
-}
-
-static void appendBytes(std::vector<unsigned char>& out, const void* source, size_t size) {
-    const auto* bytes = static_cast<const unsigned char*>(source);
-    out.insert(out.end(), bytes, bytes + size);
 }
 
 struct MonitorCaptureTarget {
@@ -63,58 +60,96 @@ static std::string captureLabel(int index, int count, bool hasCursor) {
     return label.str();
 }
 
-static std::vector<unsigned char> captureRectAsBmp(HDC screen, const RECT& rect) {
-    int width = rect.right - rect.left;
-    int height = rect.bottom - rect.top;
-    HDC memory = CreateCompatibleDC(screen);
-    HBITMAP bitmap = CreateCompatibleBitmap(screen, width, height);
-    if (!memory || !bitmap) {
-        throw std::runtime_error("Failed to initialize GDI capture.");
+static int getEncoderClsid(const WCHAR* format, CLSID* pClsid) {
+    UINT num = 0, size = 0;
+    Gdiplus::GetImageEncodersSize(&num, &size);
+    if (size == 0) return -1;
+    std::vector<unsigned char> buf(size);
+    auto* encoders = reinterpret_cast<Gdiplus::ImageCodecInfo*>(buf.data());
+    Gdiplus::GetImageEncoders(num, size, encoders);
+    for (UINT i = 0; i < num; ++i) {
+        if (wcscmp(encoders[i].MimeType, format) == 0) {
+            *pClsid = encoders[i].Clsid;
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+static std::vector<unsigned char> captureRectAsJpeg(HDC screen, const RECT& rect, int maxDimension, int* outWidth, int* outHeight) {
+    int srcWidth = rect.right - rect.left;
+    int srcHeight = rect.bottom - rect.top;
+
+    // Calculate scaled dimensions (max 1280px like Mac)
+    int dstWidth, dstHeight;
+    if (srcWidth >= srcHeight) {
+        dstWidth = (std::min)(srcWidth, maxDimension);
+        dstHeight = static_cast<int>(static_cast<double>(dstWidth) * srcHeight / srcWidth);
+    } else {
+        dstHeight = (std::min)(srcHeight, maxDimension);
+        dstWidth = static_cast<int>(static_cast<double>(dstHeight) * srcWidth / srcHeight);
     }
 
-    HGDIOBJ old = SelectObject(memory, bitmap);
-    BOOL copied = BitBlt(memory, 0, 0, width, height, screen, rect.left, rect.top, SRCCOPY | CAPTUREBLT);
-    SelectObject(memory, old);
-    if (!copied) {
-        DeleteObject(bitmap);
-        DeleteDC(memory);
-        throw std::runtime_error("BitBlt failed.");
-    }
+    // Capture full resolution
+    HDC memDC = CreateCompatibleDC(screen);
+    HBITMAP hBitmap = CreateCompatibleBitmap(screen, srcWidth, srcHeight);
+    HGDIOBJ old = SelectObject(memDC, hBitmap);
+    BitBlt(memDC, 0, 0, srcWidth, srcHeight, screen, rect.left, rect.top, SRCCOPY | CAPTUREBLT);
+    SelectObject(memDC, old);
+    DeleteDC(memDC);
 
-    BITMAPINFOHEADER header = {};
-    header.biSize = sizeof(BITMAPINFOHEADER);
-    header.biWidth = width;
-    header.biHeight = height;
-    header.biPlanes = 1;
-    header.biBitCount = 32;
-    header.biCompression = BI_RGB;
+    // Create GDI+ bitmap from HBITMAP and scale
+    Gdiplus::Bitmap srcBitmap(hBitmap, nullptr);
+    DeleteObject(hBitmap);
 
-    DWORD pixelBytes = static_cast<DWORD>(width * height * 4);
-    std::vector<unsigned char> pixels(pixelBytes);
-    if (!GetDIBits(screen, bitmap, 0, height, pixels.data(), reinterpret_cast<BITMAPINFO*>(&header), DIB_RGB_COLORS)) {
-        DeleteObject(bitmap);
-        DeleteDC(memory);
-        throw std::runtime_error("GetDIBits failed.");
-    }
+    Gdiplus::Bitmap dstBitmap(dstWidth, dstHeight, PixelFormat32bppARGB);
+    Gdiplus::Graphics graphics(&dstBitmap);
+    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    graphics.DrawImage(&srcBitmap, 0, 0, dstWidth, dstHeight);
 
-    BITMAPFILEHEADER fileHeader = {};
-    fileHeader.bfType = 0x4D42;
-    fileHeader.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
-    fileHeader.bfSize = fileHeader.bfOffBits + pixelBytes;
+    // Encode as JPEG with 80% quality
+    CLSID jpegClsid;
+    getEncoderClsid(L"image/jpeg", &jpegClsid);
+    Gdiplus::EncoderParameters encoderParams;
+    encoderParams.Count = 1;
+    encoderParams.Parameter[0].Guid = Gdiplus::EncoderQuality;
+    encoderParams.Parameter[0].Type = Gdiplus::EncoderParameterValueTypeLong;
+    encoderParams.Parameter[0].NumberOfValues = 1;
+    ULONG quality = 80;
+    encoderParams.Parameter[0].Value = &quality;
 
-    std::vector<unsigned char> bmp;
-    appendBytes(bmp, &fileHeader, sizeof(fileHeader));
-    appendBytes(bmp, &header, sizeof(header));
-    appendBytes(bmp, pixels.data(), pixels.size());
-    DeleteObject(bitmap);
-    DeleteDC(memory);
-    return bmp;
+    // Save to IStream
+    IStream* stream = nullptr;
+    CreateStreamOnHGlobal(nullptr, TRUE, &stream);
+    dstBitmap.Save(stream, &jpegClsid, &encoderParams);
+
+    // Read stream into vector
+    STATSTG stat;
+    stream->Stat(&stat, STATFLAG_NONAME);
+    ULONG dataSize = static_cast<ULONG>(stat.cbSize.QuadPart);
+    std::vector<unsigned char> jpegData(dataSize);
+    LARGE_INTEGER seekPos;
+    seekPos.QuadPart = 0;
+    stream->Seek(seekPos, STREAM_SEEK_SET, nullptr);
+    ULONG bytesRead = 0;
+    stream->Read(jpegData.data(), dataSize, &bytesRead);
+    stream->Release();
+
+    *outWidth = dstWidth;
+    *outHeight = dstHeight;
+    return jpegData;
 }
 
 int main() {
+    // Initialize GDI+
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR gdiplusToken;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
+
     HDC screen = GetDC(nullptr);
     if (!screen) {
         std::cerr << "Failed to acquire screen DC." << std::endl;
+        Gdiplus::GdiplusShutdown(gdiplusToken);
         return 1;
     }
 
@@ -127,17 +162,21 @@ int main() {
         return left.rect.left < right.rect.left;
     });
 
+    static const int MAX_DIMENSION = 1280;
+
     std::cout << "[";
     for (size_t i = 0; i < targets.size(); ++i) {
         const RECT& rect = targets[i].rect;
         int width = rect.right - rect.left;
         int height = rect.bottom - rect.top;
-        std::vector<unsigned char> bmp;
+        int outWidth = 0, outHeight = 0;
+        std::vector<unsigned char> jpeg;
         try {
-            bmp = captureRectAsBmp(screen, rect);
-        } catch (const std::exception& error) {
-            std::cerr << error.what() << std::endl;
+            jpeg = captureRectAsJpeg(screen, rect, MAX_DIMENSION, &outWidth, &outHeight);
+        } catch (...) {
+            std::cerr << "Failed to capture monitor " << i << std::endl;
             ReleaseDC(nullptr, screen);
+            Gdiplus::GdiplusShutdown(gdiplusToken);
             return 1;
         }
         if (i > 0) {
@@ -152,13 +191,14 @@ int main() {
             << ",\"height\":" << height
             << ",\"label\":\"" << captureLabel(static_cast<int>(i), static_cast<int>(targets.size()), targets[i].hasCursor)
             << "\",\"isCursorScreen\":" << (targets[i].hasCursor ? "true" : "false")
-            << ",\"screenshotWidthInPixels\":" << width
-            << ",\"screenshotHeightInPixels\":" << height
-            << ",\"mediaType\":\"image/bmp\",\"data\":\"" << base64Encode(bmp)
+            << ",\"screenshotWidthInPixels\":" << outWidth
+            << ",\"screenshotHeightInPixels\":" << outHeight
+            << ",\"mediaType\":\"image/jpeg\",\"data\":\"" << base64Encode(jpeg)
             << "\"}";
     }
     std::cout << "]" << std::endl;
 
     ReleaseDC(nullptr, screen);
+    Gdiplus::GdiplusShutdown(gdiplusToken);
     return 0;
 }

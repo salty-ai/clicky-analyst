@@ -50,6 +50,8 @@ int main() {
         return 1;
     }
 
+    std::cout << "READY" << std::endl;
+
     std::thread listener(stdinListener);
     listener.detach();
 
