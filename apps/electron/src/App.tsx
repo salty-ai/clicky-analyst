@@ -4,6 +4,7 @@ import { DEFAULT_PERMISSION_SNAPSHOT, type PermissionKey, type PermissionSnapsho
 import { DEFAULT_SETTINGS, type PiksySettings, type PiksyVoiceState } from "./features/settings/settingsTypes";
 import { CursorOverlay } from "./features/overlay/CursorOverlay";
 import { ResponseOverlay } from "./features/overlay/ResponseOverlay";
+import { NotchIsland } from "./features/notch/NotchIsland";
 import { BrowserAssemblyStreamingDictationSession } from "./features/dictation/assemblyAiStreaming";
 // TTS temporarily disabled.
 // import { BrowserTtsClient } from "./features/tts/ttsClient";
@@ -309,6 +310,10 @@ export function App() {
     }
     setVoiceState("responding");
     setResponseText("hey! i'm Piksy");
+  }
+
+  if (windowType === "notch-island") {
+    return <NotchIsland />;
   }
 
   if (windowType === "overlay") {

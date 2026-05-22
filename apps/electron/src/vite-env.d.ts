@@ -63,6 +63,10 @@ declare global {
         platform: NodeJS.Platform;
         onVoiceStateChanged: (callback: (voiceState: PiksyVoiceState) => void) => () => void;
       };
+      notch: {
+        setIgnoreMouse: (ignore: boolean) => void;
+        onStatus: (callback: (status: string) => void) => () => void;
+      };
     };
   }
 }

@@ -22,7 +22,9 @@ export const IPC_CHANNELS = {
   analyticsTrack: "piksy:analytics:track",
   appSetVoiceState: "piksy:app:set-voice-state",
   appDismissPanel: "piksy:app:dismiss-panel",
-  appQuit: "piksy:app:quit"
+  appQuit: "piksy:app:quit",
+  notchSetIgnoreMouse: "piksy:notch:set-ignore-mouse",
+  notchStatus: "piksy:notch:status"
 } as const;
 
 export type PiksyIpcSuccess<T = void> = { success: true; data?: T };

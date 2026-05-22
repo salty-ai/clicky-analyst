@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { publishVoiceState, registerIpcHandlers } from "./ipc/register";
 import { requestNativePermission, startNativeShortcutMonitor } from "./nativeBridge";
-import { createPanelWindow, hidePanel, initializeWindowLifecycle, showOverlay, showPanelNearTray } from "./windows";
+import { createPanelWindow, hidePanel, initializeWindowLifecycle, showNotchIsland, showOverlay, showPanelNearTray } from "./windows";
 
 const require = createRequire(import.meta.url);
 const { app, Menu, nativeImage, session, systemPreferences, Tray } = require("electron") as typeof import("electron");
@@ -120,6 +120,9 @@ app.whenReady().then(async () => {
   shortcutRetryTimer = setInterval(startShortcutMonitorIfNeeded, 5000);
   showOverlay();
   showPanelFromTray();
+  if (process.platform === "darwin") {
+    showNotchIsland();
+  }
 });
 
 app.on("activate", () => {

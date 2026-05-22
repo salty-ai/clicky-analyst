@@ -39,5 +39,9 @@ export const piksyBridge = window.piksy ?? {
     quit: () => undefined,
     platform: "darwin" as const,
     onVoiceStateChanged: () => () => undefined
+  },
+  notch: {
+    setIgnoreMouse: () => undefined,
+    onStatus: () => () => undefined
   }
 } satisfies Window["piksy"];

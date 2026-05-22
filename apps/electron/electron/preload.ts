@@ -24,7 +24,9 @@ const IPC_CHANNELS = {
   analyticsTrack: "piksy:analytics:track",
   appSetVoiceState: "piksy:app:set-voice-state",
   appDismissPanel: "piksy:app:dismiss-panel",
-  appQuit: "piksy:app:quit"
+  appQuit: "piksy:app:quit",
+  notchSetIgnoreMouse: "piksy:notch:set-ignore-mouse",
+  notchStatus: "piksy:notch:status"
 } as const;
 
 contextBridge.exposeInMainWorld("piksy", {
@@ -78,6 +80,14 @@ contextBridge.exposeInMainWorld("piksy", {
       const listener = (_event: Electron.IpcRendererEvent, voiceState: PiksyVoiceState) => callback(voiceState);
       ipcRenderer.on(IPC_CHANNELS.voiceStateChanged, listener);
       return () => ipcRenderer.off(IPC_CHANNELS.voiceStateChanged, listener);
+    }
+  },
+  notch: {
+    setIgnoreMouse: (ignore: boolean) => ipcRenderer.send(IPC_CHANNELS.notchSetIgnoreMouse, ignore),
+    onStatus: (callback: (status: string) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: string) => callback(status);
+      ipcRenderer.on(IPC_CHANNELS.notchStatus, listener);
+      return () => ipcRenderer.off(IPC_CHANNELS.notchStatus, listener);
     }
   }
 });

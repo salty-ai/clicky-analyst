@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { DEFAULT_PERMISSION_SNAPSHOT, normalizePermissionStatus, type PermissionKey, type PermissionSnapshot } from "../../src/features/permissions/permissionTypes";
 import { DEFAULT_SETTINGS, normalizeSettings, type PiksySettings } from "../../src/features/settings/settingsTypes";
 import { captureNativeScreenshots, getNativePermissionSnapshot, requestNativePermission } from "../nativeBridge";
-import { hideOverlay, hidePanel, sendOverlayPoint, sendVoiceState, showOverlay } from "../windows";
+import { hideOverlay, hidePanel, sendNotchStatus, sendOverlayPoint, sendVoiceState, setNotchIslandIgnoreMouse, showOverlay } from "../windows";
 import { IPC_CHANNELS, type CompanionResponsePayload, type NativeScreenshotPayload, type PointAtPayload, type SettingsSetPayload } from "./contracts";
 
 const require = createRequire(import.meta.url);
@@ -216,7 +216,9 @@ function mapScreenshotPointToDesktopPoint(point: PointAtPayload, screenshots: Na
 
 async function sendPromptToCompanion(prompt: string): Promise<CompanionResponsePayload> {
   const settings = await readSettings();
+  sendNotchStatus("Capturing screen…");
   const screenshots = await captureNativeScreenshots();
+  sendNotchStatus("Thinking…");
   const response = await fetch(`${settings.serverUrl}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -342,6 +344,9 @@ export function registerIpcHandlers(): void {
   });
   ipcMain.on(IPC_CHANNELS.appDismissPanel, () => hidePanel());
   ipcMain.on(IPC_CHANNELS.appQuit, () => app.quit());
+  ipcMain.on(IPC_CHANNELS.notchSetIgnoreMouse, (_event, ignore: boolean) => {
+    setNotchIslandIgnoreMouse(ignore);
+  });
 }
 
 export function publishVoiceState(voiceState: "idle" | "listening" | "processing" | "responding"): void {
