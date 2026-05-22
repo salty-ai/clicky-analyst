@@ -1,59 +1,73 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PiksyVoiceState } from "../settings/settingsTypes";
-import { piksyBridge } from "../../piksyBridge";
+import type { GlideVoiceState } from "../settings/settingsTypes";
+import { glideBridge } from "../../glideBridge";
 import "./notchIsland.css";
 
+function stateLabel(voiceState: GlideVoiceState) {
+  switch (voiceState) {
+    case "listening": return "Listening";
+    case "processing": return "Thinking";
+    case "responding": return "Speaking";
+    default: return "Idle";
+  }
+}
+
 export function NotchIsland() {
-  const [voiceState, setVoiceState] = useState<PiksyVoiceState>("idle");
+  const [voiceState, setVoiceState] = useState<GlideVoiceState>("idle");
   const [statusText, setStatusText] = useState("");
-  const [responseText, setResponseText] = useState("");
   const [expanded, setExpanded] = useState(false);
   const collapseTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    const unsubVoice = piksyBridge.app.onVoiceStateChanged((state) => {
+    const unsubVoice = glideBridge.app.onVoiceStateChanged((state) => {
       setVoiceState(state);
-      if (state === "listening") { setResponseText(""); setStatusText(""); }
-      if (state === "idle") setStatusText("");
+      if (state === "listening") glideBridge.notch.haptic();
     });
-    const unsubTranscript = piksyBridge.dictation.onTranscript(setResponseText);
-    const unsubStatus = piksyBridge.notch.onStatus(setStatusText);
-    return () => { unsubVoice?.(); unsubTranscript?.(); unsubStatus?.(); };
+    const unsubStatus = glideBridge.notch.onStatus(setStatusText);
+    return () => { unsubVoice?.(); unsubStatus?.(); };
   }, []);
 
   const handleMouseEnter = useCallback(() => {
-    if (collapseTimer.current) { clearTimeout(collapseTimer.current); collapseTimer.current = null; }
+    if (collapseTimer.current) window.clearTimeout(collapseTimer.current);
+    collapseTimer.current = null;
     setExpanded(true);
-    piksyBridge.notch.setIgnoreMouse(false);
+    glideBridge.notch.setIgnoreMouse(false);
   }, []);
 
   const handleMouseLeave = useCallback(() => {
     collapseTimer.current = window.setTimeout(() => {
       setExpanded(false);
-      piksyBridge.notch.setIgnoreMouse(true);
+      glideBridge.notch.setIgnoreMouse(true);
       collapseTimer.current = null;
-    }, 500);
+    }, 300);
   }, []);
 
-  const isActive = voiceState !== "idle";
-  const label = statusText
-    || (voiceState === "listening" ? "Listening"
-      : voiceState === "processing" ? "Processing"
-      : voiceState === "responding" ? (responseText.slice(0, 40) || "Speaking")
-      : "⌥⌘");
+  const active = voiceState !== "idle";
+  const label = statusText || stateLabel(voiceState);
 
   return (
     <div className="di-root">
-      <div className="di-zone" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} />
-      <div
-        className={`di ${expanded || isActive ? "di--visible" : ""}`}
+      <div className="di-hover-zone" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} />
+      <section
+        className="di"
         data-state={voiceState}
+        data-expanded={expanded}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <span className="di__text">{label}</span>
-        <span className="di__accent" data-state={voiceState} />
-      </div>
+        <header className="di-header">
+          {(expanded || active) ? <span className="di-label">{label}</span> : <span className="di-idle-dot" aria-hidden="true" />}
+          {expanded ? <span className="di-brand">Glide</span> : null}
+          {active ? <span className="di-state-icon" aria-hidden="true"><span /><span /><span /><span /><span /></span> : null}
+        </header>
+        {expanded ? (
+          <div className="di-body">
+            <div className="di-row"><span>⌘</span><p>Hold ⌃⌥ to talk</p></div>
+            <div className="di-row"><span>⌁</span><p>Glide cursor</p><button type="button" aria-label="Glide cursor enabled" /></div>
+            <button className="di-replay" type="button">Replay Onboarding</button>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

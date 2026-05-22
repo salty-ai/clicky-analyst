@@ -1,9 +1,9 @@
 import { DEFAULT_PERMISSION_SNAPSHOT } from "./features/permissions/permissionTypes";
 import { DEFAULT_SETTINGS } from "./features/settings/settingsTypes";
 
-export const isElectronBridgeAvailable = Boolean(window.piksy);
+export const isElectronBridgeAvailable = Boolean(window.glide);
 
-export const piksyBridge = window.piksy ?? {
+export const glideBridge = window.glide ?? {
   permissions: {
     getSnapshot: async () => DEFAULT_PERMISSION_SNAPSHOT,
     request: async () => ({ success: true, data: DEFAULT_PERMISSION_SNAPSHOT }),
@@ -42,6 +42,7 @@ export const piksyBridge = window.piksy ?? {
   },
   notch: {
     setIgnoreMouse: () => undefined,
+    haptic: () => undefined,
     onStatus: () => () => undefined
   }
-} satisfies Window["piksy"];
+} satisfies Window["glide"];

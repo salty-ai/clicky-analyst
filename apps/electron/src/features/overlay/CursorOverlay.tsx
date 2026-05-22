@@ -1,9 +1,9 @@
-import type { PiksyVoiceState } from "../settings/settingsTypes";
+import type { GlideVoiceState } from "../settings/settingsTypes";
 
 type CursorOverlayProps = {
   x: number;
   y: number;
-  voiceState: PiksyVoiceState;
+  voiceState: GlideVoiceState;
   visible: boolean;
   isCursorOnScreen?: boolean;
   bubbleText?: string;

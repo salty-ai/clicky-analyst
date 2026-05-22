@@ -27,13 +27,13 @@ export function getPrebundledNativeHelperPath(binaryName: string): string {
 }
 
 export function getMacScreenCaptureHelperPath(): string {
-  return getPrebundledNativeHelperPath("piksy-native-helper");
+  return getPrebundledNativeHelperPath("glide-native-helper");
 }
 
 export function getWindowsCaptureHelperPath(): string {
-  return getPrebundledNativeHelperPath("piksy-screen-capture.exe");
+  return getPrebundledNativeHelperPath("glide-screen-capture.exe");
 }
 
 export function getWindowsKeyboardHookHelperPath(): string {
-  return getPrebundledNativeHelperPath("piksy-keyboard-hook.exe");
+  return getPrebundledNativeHelperPath("glide-keyboard-hook.exe");
 }

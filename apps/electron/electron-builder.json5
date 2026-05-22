@@ -1,6 +1,6 @@
 {
-  appId: "app.piksy.desktop",
-  productName: "Piksy",
+  appId: "app.glide.desktop",
+  productName: "Glide",
   directories: {
     output: "release"
   },
@@ -17,7 +17,7 @@
     icon: "build/icon.icns",
     category: "public.app-category.productivity",
     extendInfo: {
-      NSMicrophoneUsageDescription: "Piksy uses the microphone for push-to-talk voice dictation."
+      NSMicrophoneUsageDescription: "Glide uses the microphone for push-to-talk voice dictation."
     },
     target: [
       { target: "dmg", arch: ["arm64", "x64"] },

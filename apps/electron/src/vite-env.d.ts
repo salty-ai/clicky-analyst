@@ -1,30 +1,30 @@
 /// <reference types="vite/client" />
 
 import type { PermissionKey, PermissionSnapshot } from "./features/permissions/permissionTypes";
-import type { PiksySettings, PiksyVoiceState } from "./features/settings/settingsTypes";
+import type { GlideSettings, GlideVoiceState } from "./features/settings/settingsTypes";
 
-type PiksyInvokeResult<T = void> = Promise<{ success: boolean; data?: T; error?: string }>;
+type GlideInvokeResult<T = void> = Promise<{ success: boolean; data?: T; error?: string }>;
 
 declare global {
   interface Window {
-    piksy: {
+    glide: {
       permissions: {
         getSnapshot: () => Promise<PermissionSnapshot>;
-        request: (key: PermissionKey) => PiksyInvokeResult<PermissionSnapshot>;
-        openSettings: (key: PermissionKey) => PiksyInvokeResult;
+        request: (key: PermissionKey) => GlideInvokeResult<PermissionSnapshot>;
+        openSettings: (key: PermissionKey) => GlideInvokeResult;
       };
       dictation: {
-        start: () => PiksyInvokeResult;
-        stop: () => PiksyInvokeResult<{ transcript: string }>;
+        start: () => GlideInvokeResult;
+        stop: () => GlideInvokeResult<{ transcript: string }>;
         onTranscript: (callback: (transcript: string) => void) => () => void;
       };
       companion: {
-        sendPrompt: (prompt: string) => PiksyInvokeResult<{
+        sendPrompt: (prompt: string) => GlideInvokeResult<{
           text: string;
           spokenText: string;
           pointingSequence: Array<{ point: { x: number; y: number; label: string; screenIndex: number }; speech: string }>;
         }>;
-        captureScreens: () => PiksyInvokeResult<
+        captureScreens: () => GlideInvokeResult<
           Array<{
             screenIndex: number;
             displayId: number;
@@ -42,29 +42,30 @@ declare global {
         >;
       };
       overlay: {
-        show: () => PiksyInvokeResult;
-        hide: () => PiksyInvokeResult;
-        pointAt: (target: { x: number; y: number; label: string; screenIndex: number }) => PiksyInvokeResult;
+        show: () => GlideInvokeResult;
+        hide: () => GlideInvokeResult;
+        pointAt: (target: { x: number; y: number; label: string; screenIndex: number }) => GlideInvokeResult;
         cursorPosition: () => Promise<{ x: number; y: number; isOnScreen: boolean }>;
         onPointChanged: (callback: (target: { x: number; y: number; label: string; screenIndex: number }) => void) => () => void;
         onCursorPositionChanged: (callback: (point: { x: number; y: number; isOnScreen: boolean }) => void) => () => void;
       };
       settings: {
-        get: () => Promise<PiksySettings>;
-        set: (settings: Partial<PiksySettings>) => PiksyInvokeResult<PiksySettings>;
+        get: () => Promise<GlideSettings>;
+        set: (settings: Partial<GlideSettings>) => GlideInvokeResult<GlideSettings>;
       };
       analytics: {
         track: (name: string, properties?: Record<string, unknown>) => void;
       };
       app: {
-        setVoiceState: (voiceState: PiksyVoiceState) => void;
+        setVoiceState: (voiceState: GlideVoiceState) => void;
         dismissPanel: () => void;
         quit: () => void;
         platform: NodeJS.Platform;
-        onVoiceStateChanged: (callback: (voiceState: PiksyVoiceState) => void) => () => void;
+        onVoiceStateChanged: (callback: (voiceState: GlideVoiceState) => void) => () => void;
       };
       notch: {
         setIgnoreMouse: (ignore: boolean) => void;
+        haptic: () => void;
         onStatus: (callback: (status: string) => void) => () => void;
       };
     };

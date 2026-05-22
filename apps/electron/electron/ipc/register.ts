@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { DEFAULT_PERMISSION_SNAPSHOT, normalizePermissionStatus, type PermissionKey, type PermissionSnapshot } from "../../src/features/permissions/permissionTypes";
-import { DEFAULT_SETTINGS, normalizeSettings, type PiksySettings } from "../../src/features/settings/settingsTypes";
+import { DEFAULT_SETTINGS, normalizeSettings, type GlideSettings } from "../../src/features/settings/settingsTypes";
 import { captureNativeScreenshots, getNativePermissionSnapshot, requestNativePermission } from "../nativeBridge";
 import { hideOverlay, hidePanel, sendNotchStatus, sendOverlayPoint, sendVoiceState, setNotchIslandIgnoreMouse, showOverlay } from "../windows";
 import { IPC_CHANNELS, type CompanionResponsePayload, type NativeScreenshotPayload, type PointAtPayload, type SettingsSetPayload } from "./contracts";
@@ -12,7 +12,7 @@ const electron = require("electron") as typeof import("electron");
 const { app, BrowserWindow, ipcMain, shell } = electron;
 const settingsFile = () => path.join(app.getPath("userData"), "settings.json");
 
-let cachedSettings: PiksySettings = DEFAULT_SETTINGS;
+let cachedSettings: GlideSettings = DEFAULT_SETTINGS;
 let cachedPermissions: PermissionSnapshot = DEFAULT_PERMISSION_SNAPSHOT;
 const conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
 
@@ -20,17 +20,17 @@ function getScreen(): Electron.Screen {
   return electron.screen;
 }
 
-async function readSettings(): Promise<PiksySettings> {
+async function readSettings(): Promise<GlideSettings> {
   try {
     const raw = await fs.readFile(settingsFile(), "utf8");
-    cachedSettings = normalizeSettings(JSON.parse(raw) as Partial<PiksySettings>);
+    cachedSettings = normalizeSettings(JSON.parse(raw) as Partial<GlideSettings>);
   } catch {
     cachedSettings = DEFAULT_SETTINGS;
   }
   return cachedSettings;
 }
 
-async function writeSettings(settings: PiksySettings): Promise<void> {
+async function writeSettings(settings: GlideSettings): Promise<void> {
   await fs.mkdir(path.dirname(settingsFile()), { recursive: true });
   await fs.writeFile(settingsFile(), JSON.stringify(settings, null, 2), "utf8");
 }
@@ -90,7 +90,7 @@ function labeledImageBlocks(screenshots: NativeScreenshotPayload[]) {
 
 function companionSystemPrompt(): string {
   return [
-    "you're piksy, a friendly always-on companion that lives in the user's menu bar. the user just spoke to you via push-to-talk and you can see their screen(s).",
+    "you're glide, a friendly always-on companion that lives in the user's menu bar. the user just spoke to you via push-to-talk and you can see their screen(s).",
     "default to one or two sentences unless the user asks for depth. be direct, casual, warm, and write for speech.",
     "if pointing would help, use pointAt-style tags exactly like [POINT:x,y:label:screenN]. coordinates use the screenshot pixel space, origin top-left.",
     "if the cursor screen is relevant, omit screenN or use screen1. if another display is relevant, include its screen number from the image label."
@@ -346,6 +346,13 @@ export function registerIpcHandlers(): void {
   ipcMain.on(IPC_CHANNELS.appQuit, () => app.quit());
   ipcMain.on(IPC_CHANNELS.notchSetIgnoreMouse, (_event, ignore: boolean) => {
     setNotchIslandIgnoreMouse(ignore);
+  });
+  ipcMain.on(IPC_CHANNELS.notchHaptic, () => {
+    if (process.platform === "darwin") {
+      require("child_process").exec(
+        `swift -e 'import AppKit; NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)'`
+      );
+    }
   });
 }
 

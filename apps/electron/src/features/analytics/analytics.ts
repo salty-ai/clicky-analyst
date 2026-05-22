@@ -3,6 +3,6 @@ export type AnalyticsEvent = {
   properties?: Record<string, unknown>;
 };
 
-export function trackPiksyEvent(event: AnalyticsEvent): void {
-  window.piksy?.analytics.track(event.name, event.properties);
+export function trackGlideEvent(event: AnalyticsEvent): void {
+  window.glide?.analytics.track(event.name, event.properties);
 }

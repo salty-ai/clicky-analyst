@@ -1,11 +1,6 @@
-/*
- * Piksy Dynamic Island
- *
- * Design: Refined obsidian glass with baby pink luminescence.
- * Compact. No dots. No icons. Just presence.
- * The text floats in a slender black capsule that feels
- * like it was always part of the hardware.
- */
+:root {
+  --di-spring: cubic-bezier(0.34, 1.25, 0.35, 1);
+}
 
 .di-root {
   position: fixed;
@@ -17,160 +12,116 @@
   background: transparent;
 }
 
-.di-zone {
+.di-hover-zone {
   position: fixed;
   top: 0;
   left: 50%;
+  width: 340px;
+  height: 56px;
   transform: translateX(-50%);
-  width: 440px;
-  height: 36px;
   pointer-events: auto;
-  z-index: 2;
 }
 
 .di {
+  width: 340px;
+  height: 36px;
   pointer-events: auto;
-  margin-top: 0;
-  width: 380px;
-  height: 44px;
-  border-radius: 0 0 18px 18px;
-  background: linear-gradient(
-    180deg,
-    #000000 0%,
-    #0a0608 100%
-  );
+  overflow: hidden;
+  color: white;
+  background: #000;
+  clip-path: path("M 0 0 Q 8 0 8 8 L 8 22 Q 8 36 22 36 L 318 36 Q 332 36 332 22 L 332 8 Q 332 0 340 0 Z");
+  transition: width 350ms var(--di-spring), height 350ms var(--di-spring), clip-path 350ms var(--di-spring);
+}
+
+.di[data-expanded="true"] {
+  height: 310px;
+  clip-path: path("M 0 0 Q 8 0 8 8 L 8 288 Q 8 310 30 310 L 310 310 Q 332 310 332 288 L 332 8 Q 332 0 340 0 Z");
+}
+
+.di-header {
+  height: 36px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  gap: 10px;
-  position: relative;
-  overflow: hidden;
-  opacity: 0;
-  transform: scaleX(0.92) scaleY(0.9);
-  transform-origin: top center;
-  transition:
-    opacity 250ms ease,
-    transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1;
+  gap: 6px;
+  padding: 0 18px;
 }
 
-.di--visible {
-  opacity: 1;
-  transform: scaleX(1) scaleY(1);
+.di-idle-dot {
+  width: 7px;
+  height: 7px;
+  margin: 0 auto;
+  border: 1.5px solid rgba(255,255,255,.3);
+  border-radius: 999px;
 }
 
-/* Soft pink inner glow — like light bleeding through dark glass */
-.di::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    ellipse 60% 100% at 50% 100%,
-    rgba(255, 182, 206, 0.04) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
+.di-state-icon {
+  width: 28px;
+  height: 14px;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2.5px;
 }
 
-/* Bottom edge — delicate pink hairline */
-.di::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 15%;
-  right: 15%;
-  height: 0.5px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 182, 206, 0.35),
-    rgba(255, 145, 185, 0.5),
-    rgba(255, 182, 206, 0.35),
-    transparent
-  );
-  opacity: 0;
-  transition: opacity 500ms ease;
+.di-state-icon span {
+  width: 2.5px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f7a6c6;
+  animation: di-wave 800ms ease-in-out infinite alternate;
 }
+.di[data-state="listening"] .di-state-icon span { background: #42d77d; }
+.di[data-state="processing"] .di-state-icon span { background: #f7a6c6; }
+.di[data-state="responding"] .di-state-icon span { background: #a855f7; }
+.di-state-icon span:nth-child(2) { animation-delay: 90ms; }
+.di-state-icon span:nth-child(3) { animation-delay: 180ms; }
+.di-state-icon span:nth-child(4) { animation-delay: 60ms; }
 
-.di--visible::after {
-  opacity: 1;
-}
-
-/* Text */
-.di__text {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(255, 220, 235, 0.8);
-  letter-spacing: -0.1px;
-  white-space: nowrap;
+.di-label {
+  min-width: 0;
+  max-width: 170px;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px;
-  position: relative;
-  z-index: 1;
+  white-space: nowrap;
+  font: 500 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  color: rgba(255,255,255,.7);
 }
 
-/* Accent — a tiny living gradient bar */
-.di__accent {
-  width: 3px;
-  height: 14px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #ffb6ce, #ff7bab);
-  opacity: 0.5;
-  transition: all 400ms ease;
-  position: relative;
-  z-index: 1;
+.di-brand {
+  margin-left: auto;
+  font: 500 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  color: rgba(255,255,255,.5);
 }
 
-.di__accent[data-state="listening"] {
-  opacity: 1;
-  height: 16px;
-  background: linear-gradient(180deg, #a8f0d4, #4ade80);
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
-  animation: accent-wave 1.2s ease-in-out infinite;
+.di-body {
+  padding: 6px 14px 16px;
 }
 
-.di__accent[data-state="processing"] {
-  opacity: 1;
-  background: linear-gradient(180deg, #ffc8dd, #ff6b9d);
-  box-shadow: 0 0 8px rgba(255, 107, 157, 0.3);
-  animation: accent-breathe 1s ease-in-out infinite;
+.di-row {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  color: rgba(255,255,255,.72);
+  font: 500 12.5px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 }
 
-.di__accent[data-state="responding"] {
-  opacity: 1;
-  height: 18px;
-  background: linear-gradient(180deg, #ffb6ce, #ff4d8d);
-  box-shadow: 0 0 10px rgba(255, 77, 141, 0.4);
-  animation: accent-wave 1.8s ease-in-out infinite;
+.di-row span { color: rgba(247,166,198,.6); width: 16px; text-align: center; }
+.di-row p { margin: 0; }
+.di-row button { margin-left: auto; width: 28px; height: 16px; border-radius: 999px; background: #f472b6; box-shadow: inset 12px 0 0 rgba(255,255,255,.85); }
+
+.di-replay {
+  width: 100%;
+  margin-top: 2px;
+  padding: 8px 0;
+  color: rgba(255,255,255,.3);
+  background: transparent;
+  font: 500 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 }
 
-/* Active state — intensify the bottom glow */
-.di--visible[data-state="listening"]::after {
-  background: linear-gradient(90deg, transparent, rgba(110, 231, 183, 0.4), rgba(74, 222, 128, 0.6), rgba(110, 231, 183, 0.4), transparent);
-}
-
-.di--visible[data-state="processing"]::after,
-.di--visible[data-state="responding"]::after {
-  background: linear-gradient(90deg, transparent, rgba(255, 145, 185, 0.4), rgba(255, 107, 157, 0.6), rgba(255, 145, 185, 0.4), transparent);
-  animation: glow-breathe 2s ease-in-out infinite;
-}
-
-/* Animations */
-@keyframes accent-wave {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(1.4); }
-}
-
-@keyframes accent-breathe {
-  0%, 100% { opacity: 0.7; transform: scaleY(1); }
-  50% { opacity: 1; transform: scaleY(1.2); }
-}
-
-@keyframes glow-breathe {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+@keyframes di-wave {
+  from { height: 4px; opacity: .65; }
+  to { height: 12px; opacity: 1; }
 }

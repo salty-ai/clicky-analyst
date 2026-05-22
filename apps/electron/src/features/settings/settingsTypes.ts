@@ -1,22 +1,22 @@
-export type PiksyVoiceState = "idle" | "listening" | "processing" | "responding";
+export type GlideVoiceState = "idle" | "listening" | "processing" | "responding";
 
-export type PiksySettings = {
+export type GlideSettings = {
   serverUrl: string;
   selectedModel: string;
   shortcut: string;
   hasCompletedOnboarding: boolean;
-  isPiksyCursorEnabled: boolean;
+  isGlideCursorEnabled: boolean;
 };
 
-export const DEFAULT_SETTINGS: PiksySettings = {
+export const DEFAULT_SETTINGS: GlideSettings = {
   serverUrl: "http://localhost:8787",
   selectedModel: "openai/gpt-5.4-mini",
   shortcut: "control + option",
   hasCompletedOnboarding: false,
-  isPiksyCursorEnabled: true
+  isGlideCursorEnabled: true
 };
 
-export function normalizeSettings(input: Partial<PiksySettings> | null | undefined): PiksySettings {
+export function normalizeSettings(input: Partial<GlideSettings> | null | undefined): GlideSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...(input ?? {})

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { mountNativeNotchIsland, setNativeNotchIgnoreMouse, setNativeNotchStatus, setNativeNotchVoiceState, showNativeNotchIsland, stopNativeNotchIsland } from "./notchIslandBridge";
 
 const require = createRequire(import.meta.url);
 const electron = require("electron") as typeof import("electron");
@@ -11,7 +12,6 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 const RENDERER_DIST = path.join(APP_ROOT, "dist");
 
 let panelWindow: Electron.BrowserWindow | null = null;
-let notchIslandWindow: Electron.BrowserWindow | null = null;
 const overlayWindows = new Map<number, Electron.BrowserWindow>();
 let outsidePanelClickHandler: ((event: Electron.Event) => void) | null = null;
 let isWindowLifecycleInitialized = false;
@@ -22,7 +22,7 @@ function getScreen(): Electron.Screen {
   return electron.screen;
 }
 
-function rendererUrl(windowType: "panel" | "overlay" | "notch-island"): string {
+function rendererUrl(windowType: "panel" | "overlay"): string {
   const params = new URLSearchParams({ windowType });
   if (VITE_DEV_SERVER_URL) {
     return `${VITE_DEV_SERVER_URL}?${params.toString()}`;
@@ -221,7 +221,7 @@ export function sendOverlayPoint(target: { x: number; y: number; label: string; 
   const display = displayContainingPoint(point);
   const overlay = createOverlayWindowForDisplay(display);
   const bounds = overlay.getBounds();
-  overlay.webContents.send("piksy:overlay:point-changed", {
+  overlay.webContents.send("glide:overlay:point-changed", {
     ...target,
     x: target.x - bounds.x,
     y: target.y - bounds.y
@@ -230,11 +230,11 @@ export function sendOverlayPoint(target: { x: number; y: number; label: string; 
 }
 
 export function sendVoiceState(voiceState: "idle" | "listening" | "processing" | "responding"): void {
-  panelWindow?.webContents.send("piksy:voice-state:changed", voiceState);
-  notchIslandWindow?.webContents.send("piksy:voice-state:changed", voiceState);
+  panelWindow?.webContents.send("glide:voice-state:changed", voiceState);
+  setNativeNotchVoiceState(voiceState);
   const overlays = reconcileOverlayWindows();
   for (const overlay of overlays) {
-    overlay.webContents.send("piksy:voice-state:changed", voiceState);
+    overlay.webContents.send("glide:voice-state:changed", voiceState);
   }
   if (voiceState === "idle") {
     return;
@@ -245,62 +245,25 @@ export function sendVoiceState(voiceState: "idle" | "listening" | "processing" |
 }
 
 export function sendNotchStatus(status: string): void {
-  notchIslandWindow?.webContents.send("piksy:notch:status", status);
+  setNativeNotchStatus(status);
+}
+
+export function mountNotchIsland(): void {
+  mountNativeNotchIsland();
 }
 
 export function showNotchIsland(): void {
-  if (notchIslandWindow && !notchIslandWindow.isDestroyed()) {
-    notchIslandWindow.showInactive();
-    return;
-  }
-
-  const display = getScreen().getPrimaryDisplay();
-  const windowWidth = 500;
-  const x = Math.round(display.bounds.x + (display.bounds.width - windowWidth) / 2);
-  const y = display.bounds.y;
-
-  notchIslandWindow = new BrowserWindow({
-    width: windowWidth,
-    height: 80,
-    x,
-    y,
-    show: false,
-    frame: false,
-    resizable: false,
-    transparent: true,
-    hasShadow: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    fullscreenable: false,
-    focusable: false,
-    webPreferences: {
-      preload: path.join(electronDir, "preload.cjs"),
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: false
-    }
-  });
-  notchIslandWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  notchIslandWindow.setAlwaysOnTop(true, "screen-saver", 1);
-  notchIslandWindow.setIgnoreMouseEvents(true, { forward: true });
-  notchIslandWindow.loadURL(rendererUrl("notch-island"));
-  notchIslandWindow.on("closed", () => {
-    notchIslandWindow = null;
-  });
-  notchIslandWindow.once("ready-to-show", () => {
-    notchIslandWindow?.showInactive();
-  });
+  showNativeNotchIsland();
 }
 
 export function setNotchIslandIgnoreMouse(ignore: boolean): void {
-  if (!notchIslandWindow || notchIslandWindow.isDestroyed()) return;
-  notchIslandWindow.setIgnoreMouseEvents(ignore, { forward: true });
+  setNativeNotchIgnoreMouse(ignore);
 }
 
 export function closeAllWindows(): void {
   stopCursorStream();
   panelWindow?.close();
-  notchIslandWindow?.close();
+  stopNativeNotchIsland();
   for (const overlay of overlayWindows.values()) {
     overlay.close();
   }
@@ -321,7 +284,7 @@ function startCursorStream(): void {
       if (overlay.isDestroyed() || !overlay.isVisible()) {
         continue;
       }
-      overlay.webContents.send("piksy:overlay:cursor-position-changed", cursorPayloadForBounds(cursorPoint, overlay.getBounds()));
+      overlay.webContents.send("glide:overlay:cursor-position-changed", cursorPayloadForBounds(cursorPoint, overlay.getBounds()));
     }
   }, 8);
 }

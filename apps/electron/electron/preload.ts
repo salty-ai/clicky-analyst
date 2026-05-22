@@ -1,35 +1,36 @@
 import type { PointAtPayload, SettingsSetPayload } from "./ipc/contracts";
 import type { PermissionKey } from "../src/features/permissions/permissionTypes";
-import type { PiksyVoiceState } from "../src/features/settings/settingsTypes";
+import type { GlideVoiceState } from "../src/features/settings/settingsTypes";
 
 const { contextBridge, ipcRenderer } = require("electron") as typeof import("electron");
 const IPC_CHANNELS = {
-  permissionsGetSnapshot: "piksy:permissions:get-snapshot",
-  permissionsRequest: "piksy:permissions:request",
-  permissionsOpenSettings: "piksy:permissions:open-settings",
-  settingsGet: "piksy:settings:get",
-  settingsSet: "piksy:settings:set",
-  dictationStart: "piksy:dictation:start",
-  dictationStop: "piksy:dictation:stop",
-  dictationTranscript: "piksy:dictation:transcript",
-  voiceStateChanged: "piksy:voice-state:changed",
-  companionSendPrompt: "piksy:companion:send-prompt",
-  companionCaptureScreens: "piksy:companion:capture-screens",
-  overlayShow: "piksy:overlay:show",
-  overlayHide: "piksy:overlay:hide",
-  overlayPointAt: "piksy:overlay:point-at",
-  overlayPointChanged: "piksy:overlay:point-changed",
-  overlayCursorPosition: "piksy:overlay:cursor-position",
-  overlayCursorPositionChanged: "piksy:overlay:cursor-position-changed",
-  analyticsTrack: "piksy:analytics:track",
-  appSetVoiceState: "piksy:app:set-voice-state",
-  appDismissPanel: "piksy:app:dismiss-panel",
-  appQuit: "piksy:app:quit",
-  notchSetIgnoreMouse: "piksy:notch:set-ignore-mouse",
-  notchStatus: "piksy:notch:status"
+  permissionsGetSnapshot: "glide:permissions:get-snapshot",
+  permissionsRequest: "glide:permissions:request",
+  permissionsOpenSettings: "glide:permissions:open-settings",
+  settingsGet: "glide:settings:get",
+  settingsSet: "glide:settings:set",
+  dictationStart: "glide:dictation:start",
+  dictationStop: "glide:dictation:stop",
+  dictationTranscript: "glide:dictation:transcript",
+  voiceStateChanged: "glide:voice-state:changed",
+  companionSendPrompt: "glide:companion:send-prompt",
+  companionCaptureScreens: "glide:companion:capture-screens",
+  overlayShow: "glide:overlay:show",
+  overlayHide: "glide:overlay:hide",
+  overlayPointAt: "glide:overlay:point-at",
+  overlayPointChanged: "glide:overlay:point-changed",
+  overlayCursorPosition: "glide:overlay:cursor-position",
+  overlayCursorPositionChanged: "glide:overlay:cursor-position-changed",
+  analyticsTrack: "glide:analytics:track",
+  appSetVoiceState: "glide:app:set-voice-state",
+  appDismissPanel: "glide:app:dismiss-panel",
+  appQuit: "glide:app:quit",
+  notchSetIgnoreMouse: "glide:notch:set-ignore-mouse",
+  notchStatus: "glide:notch:status",
+  notchHaptic: "glide:notch:haptic"
 } as const;
 
-contextBridge.exposeInMainWorld("piksy", {
+contextBridge.exposeInMainWorld("glide", {
   permissions: {
     getSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.permissionsGetSnapshot),
     request: (key: PermissionKey) => ipcRenderer.invoke(IPC_CHANNELS.permissionsRequest, key),
@@ -72,18 +73,19 @@ contextBridge.exposeInMainWorld("piksy", {
     track: (name: string, properties?: Record<string, unknown>) => ipcRenderer.send(IPC_CHANNELS.analyticsTrack, name, properties)
   },
   app: {
-    setVoiceState: (voiceState: PiksyVoiceState) => ipcRenderer.send(IPC_CHANNELS.appSetVoiceState, voiceState),
+    setVoiceState: (voiceState: GlideVoiceState) => ipcRenderer.send(IPC_CHANNELS.appSetVoiceState, voiceState),
     dismissPanel: () => ipcRenderer.send(IPC_CHANNELS.appDismissPanel),
     quit: () => ipcRenderer.send(IPC_CHANNELS.appQuit),
     platform: process.platform,
-    onVoiceStateChanged: (callback: (voiceState: PiksyVoiceState) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, voiceState: PiksyVoiceState) => callback(voiceState);
+    onVoiceStateChanged: (callback: (voiceState: GlideVoiceState) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, voiceState: GlideVoiceState) => callback(voiceState);
       ipcRenderer.on(IPC_CHANNELS.voiceStateChanged, listener);
       return () => ipcRenderer.off(IPC_CHANNELS.voiceStateChanged, listener);
     }
   },
   notch: {
     setIgnoreMouse: (ignore: boolean) => ipcRenderer.send(IPC_CHANNELS.notchSetIgnoreMouse, ignore),
+    haptic: () => ipcRenderer.send(IPC_CHANNELS.notchHaptic),
     onStatus: (callback: (status: string) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, status: string) => callback(status);
       ipcRenderer.on(IPC_CHANNELS.notchStatus, listener);

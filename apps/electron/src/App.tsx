@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CompanionPanel } from "./features/panel/CompanionPanel";
 import { DEFAULT_PERMISSION_SNAPSHOT, type PermissionKey, type PermissionSnapshot } from "./features/permissions/permissionTypes";
-import { DEFAULT_SETTINGS, type PiksySettings, type PiksyVoiceState } from "./features/settings/settingsTypes";
+import { DEFAULT_SETTINGS, type GlideSettings, type GlideVoiceState } from "./features/settings/settingsTypes";
 import { CursorOverlay } from "./features/overlay/CursorOverlay";
 import { ResponseOverlay } from "./features/overlay/ResponseOverlay";
 import { NotchIsland } from "./features/notch/NotchIsland";
 import { BrowserAssemblyStreamingDictationSession } from "./features/dictation/assemblyAiStreaming";
 // TTS temporarily disabled.
 // import { BrowserTtsClient } from "./features/tts/ttsClient";
-import { isElectronBridgeAvailable, piksyBridge } from "./piksyBridge";
+import { glideBridge } from "./glideBridge";
 
 const BUDDY_CURSOR_OFFSET = { x: 35, y: 25 };
 const TARGET_CURSOR_OFFSET = { x: -7, y: -2 };
@@ -36,8 +36,8 @@ function bezierPoint(start: { x: number; y: number }, control: { x: number; y: n
 
 export function App() {
   const [permissions, setPermissions] = useState<PermissionSnapshot>(DEFAULT_PERMISSION_SNAPSHOT);
-  const [settings, setSettings] = useState<PiksySettings>(DEFAULT_SETTINGS);
-  const [voiceState, setVoiceState] = useState<PiksyVoiceState>("idle");
+  const [settings, setSettings] = useState<GlideSettings>(DEFAULT_SETTINGS);
+  const [voiceState, setVoiceState] = useState<GlideVoiceState>("idle");
   const [responseText, setResponseText] = useState("");
   const [cursorPoint, setCursorPoint] = useState({ x: 120, y: 120 });
   const [buddyPoint, setBuddyPointState] = useState(() => buddyPointFromCursor({ x: 120, y: 120 }));
@@ -81,20 +81,20 @@ export function App() {
       }
     };
 
-    void piksyBridge.overlay.cursorPosition().then(updateCursorPoint);
-    const unsubscribeCursor = piksyBridge.overlay.onCursorPositionChanged(updateCursorPoint);
+    void glideBridge.overlay.cursorPosition().then(updateCursorPoint);
+    const unsubscribeCursor = glideBridge.overlay.onCursorPositionChanged(updateCursorPoint);
     return () => {
       unsubscribeCursor?.();
     };
   }, [windowType]);
 
   useEffect(() => {
-    void piksyBridge.permissions.getSnapshot().then(setPermissions);
-    void piksyBridge.settings.get().then(setSettings);
-    const unsubscribeTranscript = piksyBridge.dictation.onTranscript((transcript) => {
+    void glideBridge.permissions.getSnapshot().then(setPermissions);
+    void glideBridge.settings.get().then(setSettings);
+    const unsubscribeTranscript = glideBridge.dictation.onTranscript((transcript) => {
       setResponseText(transcript);
     });
-    const unsubscribePoint = piksyBridge.overlay.onPointChanged((target) => {
+    const unsubscribePoint = glideBridge.overlay.onPointChanged((target) => {
       navigationRunRef.current += 1;
       const navigationRun = navigationRunRef.current;
       if (navigationFrameRef.current !== null) {
@@ -182,7 +182,7 @@ export function App() {
 
       navigationFrameRef.current = window.requestAnimationFrame(flyToTarget);
     });
-    const unsubscribeVoiceState = piksyBridge.app.onVoiceStateChanged((nextVoiceState) => {
+    const unsubscribeVoiceState = glideBridge.app.onVoiceStateChanged((nextVoiceState) => {
       setVoiceState(nextVoiceState);
       if (nextVoiceState === "listening") {
         setResponseText("");
@@ -208,7 +208,7 @@ export function App() {
     }
 
     let isDisposed = false;
-    const unsubscribeVoiceState = piksyBridge.app.onVoiceStateChanged((nextVoiceState) => {
+    const unsubscribeVoiceState = glideBridge.app.onVoiceStateChanged((nextVoiceState) => {
       if (nextVoiceState === "listening") {
         // ttsClientRef.current.stop();
         dictationSessionRef.current?.cancel();
@@ -233,7 +233,7 @@ export function App() {
           if (dictationSessionRef.current === session) {
             dictationSessionRef.current = null;
             setResponseText(`Microphone error: ${message}`);
-            piksyBridge.app.setVoiceState("idle");
+            glideBridge.app.setVoiceState("idle");
           }
         });
         return;
@@ -247,42 +247,42 @@ export function App() {
         }
         void session.stop().then((transcript) => {
           if (transcript.length === 0) {
-            piksyBridge.app.setVoiceState("idle");
+            glideBridge.app.setVoiceState("idle");
             return;
           }
           setResponseText(transcript);
-          void piksyBridge.companion.sendPrompt(transcript).then(async (result) => {
+          void glideBridge.companion.sendPrompt(transcript).then(async (result) => {
             if (!result.data) {
-              piksyBridge.app.setVoiceState("idle");
+              glideBridge.app.setVoiceState("idle");
               return;
             }
             const response = result.data;
             setResponseText(response.spokenText || response.text);
             if (response.pointingSequence.length === 0) {
-              piksyBridge.app.setVoiceState("responding");
+              glideBridge.app.setVoiceState("responding");
               // await ttsClientRef.current.speak(settingsRef.current.serverUrl, response.spokenText || response.text);
-              piksyBridge.app.setVoiceState("idle");
+              glideBridge.app.setVoiceState("idle");
               return;
             }
 
             for (const step of response.pointingSequence) {
-              piksyBridge.app.setVoiceState("idle");
-              await piksyBridge.overlay.pointAt(step.point);
+              glideBridge.app.setVoiceState("idle");
+              await glideBridge.overlay.pointAt(step.point);
               await new Promise((resolve) => window.setTimeout(resolve, POINTING_STEP_DELAY_MS));
               if (step.speech.trim()) {
-                piksyBridge.app.setVoiceState("responding");
+                glideBridge.app.setVoiceState("responding");
                 setResponseText(step.speech);
                 // await ttsClientRef.current.speak(settingsRef.current.serverUrl, step.speech);
               }
             }
-            piksyBridge.app.setVoiceState("idle");
+            glideBridge.app.setVoiceState("idle");
           }).catch((error) => {
             console.warn("[companion]", error instanceof Error ? error.message : String(error));
-            piksyBridge.app.setVoiceState("idle");
+            glideBridge.app.setVoiceState("idle");
           });
         }).catch((error) => {
           console.warn("[dictation]", error instanceof Error ? error.message : String(error));
-          piksyBridge.app.setVoiceState("idle");
+          glideBridge.app.setVoiceState("idle");
         });
       }
     });
@@ -297,19 +297,19 @@ export function App() {
   }, [windowType]);
 
   async function handleGrantPermission(key: PermissionKey) {
-    const result = await piksyBridge.permissions.request(key);
+    const result = await glideBridge.permissions.request(key);
     if (result.data) {
       setPermissions(result.data);
     }
   }
 
   async function handleStart() {
-    const result = await piksyBridge.settings.set({ hasCompletedOnboarding: true });
+    const result = await glideBridge.settings.set({ hasCompletedOnboarding: true });
     if (result.data) {
       setSettings(result.data);
     }
     setVoiceState("responding");
-    setResponseText("hey! i'm Piksy");
+    setResponseText("hey! i'm Glide");
   }
 
   if (windowType === "notch-island") {
@@ -323,9 +323,9 @@ export function App() {
           x={buddyPoint.x}
           y={buddyPoint.y}
           voiceState={voiceState}
-          visible={settings.isPiksyCursorEnabled}
+          visible={settings.isGlideCursorEnabled}
           isCursorOnScreen={isCursorOnThisOverlay || isNavigatingRef.current}
-          bubbleText={navigationBubbleText || (settings.hasCompletedOnboarding ? undefined : "hey! i'm Piksy")}
+          bubbleText={navigationBubbleText || (settings.hasCompletedOnboarding ? undefined : "hey! i'm Glide")}
           rotationDegrees={buddyRotationDegrees}
           scale={buddyScale}
         />
@@ -335,20 +335,15 @@ export function App() {
   }
 
   return (
-    <main className="piksy-shell">
-      {!isElectronBridgeAvailable ? (
-        <div className="bridge-warning" role="status">
-          Open Piksy from the Electron app, not the Vite browser URL.
-        </div>
-      ) : null}
+    <main className="glide-shell">
       <CompanionPanel
         permissions={permissions}
         settings={settings}
         voiceState={voiceState}
-        onDismiss={() => piksyBridge.app.dismissPanel()}
-        onFindApp={() => void piksyBridge.permissions.openSettings("accessibility")}
+        onDismiss={() => glideBridge.app.dismissPanel()}
+        onFindApp={() => void glideBridge.permissions.openSettings("accessibility")}
         onGrantPermission={handleGrantPermission}
-        onQuit={() => piksyBridge.app.quit()}
+        onQuit={() => glideBridge.app.quit()}
         onStart={handleStart}
       />
       <div hidden>

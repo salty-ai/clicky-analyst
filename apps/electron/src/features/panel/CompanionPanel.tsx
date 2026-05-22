@@ -2,12 +2,12 @@ import { Power, X } from "lucide-react";
 import { PermissionRows } from "./PermissionRows";
 import type { PermissionKey, PermissionSnapshot } from "../permissions/permissionTypes";
 import { areAllPermissionsGranted } from "../permissions/permissionTypes";
-import type { PiksySettings, PiksyVoiceState } from "../settings/settingsTypes";
+import type { GlideSettings, GlideVoiceState } from "../settings/settingsTypes";
 
 type CompanionPanelProps = {
   permissions: PermissionSnapshot;
-  settings: PiksySettings;
-  voiceState: PiksyVoiceState;
+  settings: GlideSettings;
+  voiceState: GlideVoiceState;
   onDismiss: () => void;
   onGrantPermission: (key: PermissionKey) => void;
   onFindApp: () => void;
@@ -15,7 +15,7 @@ type CompanionPanelProps = {
   onStart: () => void;
 };
 
-function getStatusText(voiceState: PiksyVoiceState, hasCompletedOnboarding: boolean, allPermissionsGranted: boolean): string {
+function getStatusText(voiceState: GlideVoiceState, hasCompletedOnboarding: boolean, allPermissionsGranted: boolean): string {
   if (!hasCompletedOnboarding || !allPermissionsGranted) {
     return "Setup";
   }
@@ -46,9 +46,9 @@ export function CompanionPanel({
   const showStart = !settings.hasCompletedOnboarding && allPermissionsGranted;
 
   return (
-    <section className="companion-panel" aria-label="Piksy companion panel">
+    <section className="companion-panel" aria-label="Glide companion panel">
       <header className="panel-header">
-        <div className="panel-title">Piksy</div>
+        <div className="panel-title">Glide</div>
         <span className="panel-spacer" />
         <div className="panel-status">{getStatusText(voiceState, settings.hasCompletedOnboarding, allPermissionsGranted)}</div>
         <button className="panel-close" aria-label="Close panel" type="button" onClick={onDismiss}>
@@ -60,11 +60,11 @@ export function CompanionPanel({
 
       <div className="copy-section">
         {settings.hasCompletedOnboarding && allPermissionsGranted ? "Hold Control+Option to talk." : null}
-        {!settings.hasCompletedOnboarding && allPermissionsGranted ? "You're all set. Hit Start to meet Piksy." : null}
+        {!settings.hasCompletedOnboarding && allPermissionsGranted ? "You're all set. Hit Start to meet Glide." : null}
         {settings.hasCompletedOnboarding && !allPermissionsGranted ? (
           <>
             <p className="copy-title">Permissions needed</p>
-            <p className="copy-muted">Some permissions were revoked. Grant all four below to keep using Piksy.</p>
+            <p className="copy-muted">Some permissions were revoked. Grant all four below to keep using Glide.</p>
           </>
         ) : null}
       </div>
@@ -87,7 +87,7 @@ export function CompanionPanel({
       <footer className="panel-footer">
         <button className="footer-button" type="button" onClick={onQuit}>
           <Power size={11} />
-          Quit Piksy
+          Quit Glide
         </button>
       </footer>
     </section>

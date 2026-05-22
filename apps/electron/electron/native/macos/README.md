@@ -7,5 +7,5 @@ the same app.asar unpacking pattern used in the Recordly reference app.
 Current helper commands:
 
 - `--permissions`, `--request-microphone`, `--request-accessibility`, and `--request-screen` for native privacy checks and prompts.
-- `--capture-screens` for ScreenCaptureKit screenshots across all displays, sorted with the cursor display first and excluding Piksy-owned windows.
+- `--capture-screens` for ScreenCaptureKit screenshots across all displays, sorted with the cursor display first and excluding Glide-owned windows.
 - `--keyboard-hook` for modifier-only Control+Option push-to-talk transitions using a listen-only CGEvent tap.

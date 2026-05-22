@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { publishVoiceState, registerIpcHandlers } from "./ipc/register";
 import { requestNativePermission, startNativeShortcutMonitor } from "./nativeBridge";
-import { createPanelWindow, hidePanel, initializeWindowLifecycle, showNotchIsland, showOverlay, showPanelNearTray } from "./windows";
+import { createPanelWindow, hidePanel, initializeWindowLifecycle, mountNotchIsland, showOverlay, showPanelNearTray } from "./windows";
 
 const require = createRequire(import.meta.url);
 const { app, Menu, nativeImage, session, systemPreferences, Tray } = require("electron") as typeof import("electron");
@@ -35,12 +35,12 @@ function createTray(): void {
   if (process.platform !== "darwin") {
     tray.setTitle("");
   }
-  tray.setToolTip("Piksy");
+  tray.setToolTip("Glide");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Show Piksy", click: showPanelFromTray },
+      { label: "Show Glide", click: showPanelFromTray },
       { type: "separator" },
-      { label: "Quit Piksy", click: () => app.quit() }
+      { label: "Quit Glide", click: () => app.quit() }
     ])
   );
   tray.on("click", showPanelFromTray);
@@ -121,7 +121,7 @@ app.whenReady().then(async () => {
   showOverlay();
   showPanelFromTray();
   if (process.platform === "darwin") {
-    showNotchIsland();
+    mountNotchIsland();
   }
 });
 

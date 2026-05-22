@@ -36,12 +36,12 @@ async function buildMacHelpers() {
   for (const target of targets) {
     const outputDir = path.join(nativeRoot, "bin", target.archTag);
     mkdirSync(outputDir, { recursive: true });
-    const outputPath = path.join(outputDir, "piksy-native-helper");
+    const outputPath = path.join(outputDir, "glide-native-helper");
     run("swiftc", [
       "-O",
       "-target",
       target.swiftTarget,
-      path.join(nativeRoot, "macos", "PiksyNativeHelper.swift"),
+      path.join(nativeRoot, "macos", "GlideNativeHelper.swift"),
       "-framework",
       "AVFoundation",
       "-framework",
@@ -97,5 +97,5 @@ function buildWindowsHelper(helperDir, outputName) {
 }
 
 await buildMacHelpers();
-buildWindowsHelper("keyboard-hook", "piksy-keyboard-hook.exe");
-buildWindowsHelper("screen-capture", "piksy-screen-capture.exe");
+buildWindowsHelper("keyboard-hook", "glide-keyboard-hook.exe");
+buildWindowsHelper("screen-capture", "glide-screen-capture.exe");
