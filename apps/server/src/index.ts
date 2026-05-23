@@ -110,7 +110,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
 function toGatewayModelId(model: string | undefined): string {
   if (!model) {
-    return "moonshotai/kimi-k2.6";
+    return "anthropic/claude-opus-4.7";
   }
 
   if (model.includes("/")) {
