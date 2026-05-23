@@ -64,7 +64,6 @@ private struct GlideNotchShape: Shape {
     }
 }
 
-// MARK: - Manager
 
 @MainActor
 final class GlideDynamicIslandManager {
@@ -72,8 +71,11 @@ final class GlideDynamicIslandManager {
     private let companionManager: CompanionManager
     private var cancellable: AnyCancellable?
 
-    private static let closedSize = CGSize(width: 340, height: 36)
-    private static let openSize = CGSize(width: 340, height: 310)
+    // The window is sized to the largest possible notch (expanded state).
+    // The inner SwiftUI content animates between the collapsed and expanded
+    // widths; the outer window stays this fixed size so we don't have to
+    // resize the NSPanel on hover.
+    private static let containerSize = CGSize(width: 440, height: 310)
 
     init(companionManager: CompanionManager) {
         self.companionManager = companionManager
@@ -95,7 +97,7 @@ final class GlideDynamicIslandManager {
     /// Shows the island. It stays visible like the Electron notch indicator.
     func show(expanded: Bool = false) {
         if window == nil { createWindow() }
-        window?.setFrame(Self.frame(for: Self.openSize), display: true, animate: false)
+        window?.setFrame(Self.frame(for: Self.containerSize), display: true, animate: false)
         window?.orderFrontRegardless()
     }
 
@@ -104,12 +106,12 @@ final class GlideDynamicIslandManager {
     private func createWindow() {
         let view = GlideIslandRoot(companionManager: companionManager)
         let hostingView = NSHostingView(rootView: view)
-        hostingView.frame = NSRect(origin: .zero, size: Self.openSize)
+        hostingView.frame = NSRect(origin: .zero, size: Self.containerSize)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
 
         let panel = GlideDynamicIslandWindow(
-            contentRect: Self.frame(for: Self.openSize),
+            contentRect: Self.frame(for: Self.containerSize),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -132,6 +134,14 @@ private struct GlideIslandRoot: View {
     @State private var isOpen = false
     @State private var hoverCloseTask: Task<Void, Never>?
 
+    // The notch widens horizontally on hover so there's more room for the
+    // header / permissions / ready content to breathe. The hosting NSPanel
+    // stays a fixed (wider) size so the SwiftUI animation can run inside
+    // it without resizing the window.
+    private static let collapsedNotchWidth: CGFloat = 340
+    private static let expandedNotchWidth: CGFloat = 440
+    private static let containerHeight: CGFloat = 310
+
     private var isActive: Bool {
         companionManager.voiceState != .idle
     }
@@ -145,6 +155,7 @@ private struct GlideIslandRoot: View {
                     collapsedBar
                 }
             }
+            .frame(width: isOpen ? Self.expandedNotchWidth : Self.collapsedNotchWidth)
             .background(.black)
             .clipShape(GlideNotchShape(topRadius: 8, bottomRadius: isOpen ? 22 : 14))
             .contentShape(GlideNotchShape(topRadius: 8, bottomRadius: isOpen ? 22 : 14))
@@ -169,7 +180,7 @@ private struct GlideIslandRoot: View {
 
             Spacer(minLength: 0)
         }
-        .frame(width: 340, height: 310, alignment: .top)
+        .frame(width: Self.expandedNotchWidth, height: Self.containerHeight, alignment: .top)
         .allowsHitTesting(true)
     }
 
@@ -197,7 +208,8 @@ private struct GlideIslandRoot: View {
             }
         }
         .padding(.horizontal, 18)
-        .frame(width: 340, height: 36)
+        .frame(maxWidth: .infinity)
+        .frame(height: 36)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: companionManager.voiceState)
     }
 

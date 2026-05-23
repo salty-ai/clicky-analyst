@@ -31,6 +31,11 @@ enum GlideAnalytics {
     }
 
     
+    static func trackOnboardingCompleted() {
+        PostHogSDK.shared.capture("onboarding_completed")
+    }
+
+    
     static func trackOnboardingReplayed() {
         PostHogSDK.shared.capture("onboarding_replayed")
     }

@@ -195,6 +195,25 @@ final class CompanionManager: ObservableObject {
     
     
     
+    
+    
+    func completeFirstLaunchOnboarding() {
+        hasCompletedOnboarding = true
+        GlideAnalytics.trackOnboardingCompleted()
+    }
+
+    func showGlideCursorAfterFirstLaunchOnboarding() {
+        refreshAllPermissions()
+
+        guard isGlideCursorEnabled, allPermissionsGranted else { return }
+        overlayWindowManager.hasShownOverlayBefore = true
+        overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
+        isOverlayVisible = true
+    }
+
+    
+    
+    
     func replayOnboarding() {
         NotificationCenter.default.post(name: .GlideDismissPanel, object: nil)
         GlideAnalytics.trackOnboardingReplayed()

@@ -1,4 +1,4 @@
-
+// !$*UTF8*$!
 {
 	archiveVersion = 1;
 	classes = {
@@ -6,176 +6,176 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AA00BB032F6500030039DA55 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA00BB022F6500020039DA55 /* Sparkle */; };
+		AA00BB062F6500060039DA55 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = AA00BB052F6500050039DA55 /* PostHog */; };
+/* End PBXBuildFile section */
 
-		AA00BB032F6500030039DA55  = {isa = PBXBuildFile; productRef = AA00BB022F6500020039DA55 ; };
-		AA00BB062F6500060039DA55  = {isa = PBXBuildFile; productRef = AA00BB052F6500050039DA55 ; };
-
-
-
-		28F22CCD2F56440300A0FC59  = {
+/* Begin PBXContainerItemProxy section */
+		28F22CCD2F56440300A0FC59 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 28F22CB72F56440300A0FC59 ;
+			containerPortal = 28F22CB72F56440300A0FC59 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 28F22CBE2F56440300A0FC59;
 			remoteInfo = Glide;
 		};
-		28F22CD72F56440300A0FC59  = {
+		28F22CD72F56440300A0FC59 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 28F22CB72F56440300A0FC59 ;
+			containerPortal = 28F22CB72F56440300A0FC59 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 28F22CBE2F56440300A0FC59;
 			remoteInfo = Glide;
 		};
+/* End PBXContainerItemProxy section */
 
+/* Begin PBXFileReference section */
+		28F22CBF2F56440300A0FC59 /* Glide.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Glide.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		28F22CCC2F56440300A0FC59 /* GlideTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GlideTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		28F22CD62F56440300A0FC59 /* GlideUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GlideUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
 
-
-		28F22CBF2F56440300A0FC59  = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Glide.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		28F22CCC2F56440300A0FC59  = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GlideTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		28F22CD62F56440300A0FC59  = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GlideUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-
-
-
-		28F22CC12F56440300A0FC59  = {
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		28F22CC12F56440300A0FC59 /* Glide */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Glide;
 			sourceTree = "<group>";
 		};
-		28F22CCF2F56440300A0FC59  = {
+		28F22CCF2F56440300A0FC59 /* GlideTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = GlideTests;
 			sourceTree = "<group>";
 		};
-		28F22CD92F56440300A0FC59  = {
+		28F22CD92F56440300A0FC59 /* GlideUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = GlideUITests;
 			sourceTree = "<group>";
 		};
+/* End PBXFileSystemSynchronizedRootGroup section */
 
-
-
-		28F22CBC2F56440300A0FC59  = {
+/* Begin PBXFrameworksBuildPhase section */
+		28F22CBC2F56440300A0FC59 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA00BB032F6500030039DA55 ,
-				AA00BB062F6500060039DA55 ,
+				AA00BB032F6500030039DA55 /* Sparkle in Frameworks */,
+				AA00BB062F6500060039DA55 /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28F22CC92F56440300A0FC59  = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		28F22CD32F56440300A0FC59  = {
+		28F22CC92F56440300A0FC59 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		28F22CD32F56440300A0FC59 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
-
-
+/* Begin PBXGroup section */
 		28F22CB62F56440300A0FC59 = {
 			isa = PBXGroup;
 			children = (
-				28F22CC12F56440300A0FC59 ,
-				28F22CCF2F56440300A0FC59 ,
-				28F22CD92F56440300A0FC59 ,
-				28F22CC02F56440300A0FC59 ,
+				28F22CC12F56440300A0FC59 /* Glide */,
+				28F22CCF2F56440300A0FC59 /* GlideTests */,
+				28F22CD92F56440300A0FC59 /* GlideUITests */,
+				28F22CC02F56440300A0FC59 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		28F22CC02F56440300A0FC59  = {
+		28F22CC02F56440300A0FC59 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				28F22CBF2F56440300A0FC59 ,
-				28F22CCC2F56440300A0FC59 ,
-				28F22CD62F56440300A0FC59 ,
+				28F22CBF2F56440300A0FC59 /* Glide.app */,
+				28F22CCC2F56440300A0FC59 /* GlideTests.xctest */,
+				28F22CD62F56440300A0FC59 /* GlideUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
+/* End PBXGroup section */
 
-
-
-		28F22CBE2F56440300A0FC59  = {
+/* Begin PBXNativeTarget section */
+		28F22CBE2F56440300A0FC59 /* Glide */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 28F22CE02F56440300A0FC59 ;
+			buildConfigurationList = 28F22CE02F56440300A0FC59 /* Build configuration list for PBXNativeTarget "Glide" */;
 			buildPhases = (
-				28F22CBB2F56440300A0FC59 ,
-				28F22CBC2F56440300A0FC59 ,
-				28F22CBD2F56440300A0FC59 ,
+				28F22CBB2F56440300A0FC59 /* Sources */,
+				28F22CBC2F56440300A0FC59 /* Frameworks */,
+				28F22CBD2F56440300A0FC59 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				28F22CC12F56440300A0FC59 ,
+				28F22CC12F56440300A0FC59 /* Glide */,
 			);
 			name = Glide;
 			packageProductDependencies = (
-				AA00BB022F6500020039DA55 ,
-				AA00BB052F6500050039DA55 ,
+				AA00BB022F6500020039DA55 /* Sparkle */,
+				AA00BB052F6500050039DA55 /* PostHog */,
 			);
 			productName = Glide;
-			productReference = 28F22CBF2F56440300A0FC59 ;
+			productReference = 28F22CBF2F56440300A0FC59 /* Glide.app */;
 			productType = "com.apple.product-type.application";
 		};
-		28F22CCB2F56440300A0FC59  = {
+		28F22CCB2F56440300A0FC59 /* GlideTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 28F22CE32F56440300A0FC59 ;
+			buildConfigurationList = 28F22CE32F56440300A0FC59 /* Build configuration list for PBXNativeTarget "GlideTests" */;
 			buildPhases = (
-				28F22CC82F56440300A0FC59 ,
-				28F22CC92F56440300A0FC59 ,
-				28F22CCA2F56440300A0FC59 ,
+				28F22CC82F56440300A0FC59 /* Sources */,
+				28F22CC92F56440300A0FC59 /* Frameworks */,
+				28F22CCA2F56440300A0FC59 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				28F22CCE2F56440300A0FC59 ,
+				28F22CCE2F56440300A0FC59 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				28F22CCF2F56440300A0FC59 ,
+				28F22CCF2F56440300A0FC59 /* GlideTests */,
 			);
 			name = GlideTests;
 			packageProductDependencies = (
 			);
 			productName = GlideTests;
-			productReference = 28F22CCC2F56440300A0FC59 ;
+			productReference = 28F22CCC2F56440300A0FC59 /* GlideTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		28F22CD52F56440300A0FC59  = {
+		28F22CD52F56440300A0FC59 /* GlideUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 28F22CE62F56440300A0FC59 ;
+			buildConfigurationList = 28F22CE62F56440300A0FC59 /* Build configuration list for PBXNativeTarget "GlideUITests" */;
 			buildPhases = (
-				28F22CD22F56440300A0FC59 ,
-				28F22CD32F56440300A0FC59 ,
-				28F22CD42F56440300A0FC59 ,
+				28F22CD22F56440300A0FC59 /* Sources */,
+				28F22CD32F56440300A0FC59 /* Frameworks */,
+				28F22CD42F56440300A0FC59 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				28F22CD82F56440300A0FC59 ,
+				28F22CD82F56440300A0FC59 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				28F22CD92F56440300A0FC59 ,
+				28F22CD92F56440300A0FC59 /* GlideUITests */,
 			);
 			name = GlideUITests;
 			packageProductDependencies = (
 			);
 			productName = GlideUITests;
-			productReference = 28F22CD62F56440300A0FC59 ;
+			productReference = 28F22CD62F56440300A0FC59 /* GlideUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+/* End PBXNativeTarget section */
 
-
-
-		28F22CB72F56440300A0FC59  = {
+/* Begin PBXProject section */
+		28F22CB72F56440300A0FC59 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
@@ -195,7 +195,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 28F22CBA2F56440300A0FC59 ;
+			buildConfigurationList = 28F22CBA2F56440300A0FC59 /* Build configuration list for PBXProject "Glide" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -205,84 +205,84 @@
 			mainGroup = 28F22CB62F56440300A0FC59;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				AA00BB012F6500010039DA55 ,
-				AA00BB042F6500040039DA55 ,
+				AA00BB012F6500010039DA55 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				AA00BB042F6500040039DA55 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 28F22CC02F56440300A0FC59 ;
+			productRefGroup = 28F22CC02F56440300A0FC59 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				28F22CBE2F56440300A0FC59 ,
-				28F22CCB2F56440300A0FC59 ,
-				28F22CD52F56440300A0FC59 ,
+				28F22CBE2F56440300A0FC59 /* Glide */,
+				28F22CCB2F56440300A0FC59 /* GlideTests */,
+				28F22CD52F56440300A0FC59 /* GlideUITests */,
 			);
 		};
+/* End PBXProject section */
 
-
-
-		28F22CBD2F56440300A0FC59  = {
+/* Begin PBXResourcesBuildPhase section */
+		28F22CBD2F56440300A0FC59 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28F22CCA2F56440300A0FC59  = {
+		28F22CCA2F56440300A0FC59 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28F22CD42F56440300A0FC59  = {
+		28F22CD42F56440300A0FC59 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+/* End PBXResourcesBuildPhase section */
 
-
-
-		28F22CBB2F56440300A0FC59  = {
+/* Begin PBXSourcesBuildPhase section */
+		28F22CBB2F56440300A0FC59 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28F22CC82F56440300A0FC59  = {
+		28F22CC82F56440300A0FC59 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28F22CD22F56440300A0FC59  = {
+		28F22CD22F56440300A0FC59 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+/* End PBXSourcesBuildPhase section */
 
-
-
-		28F22CCE2F56440300A0FC59  = {
+/* Begin PBXTargetDependency section */
+		28F22CCE2F56440300A0FC59 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 28F22CBE2F56440300A0FC59 ;
-			targetProxy = 28F22CCD2F56440300A0FC59 ;
+			target = 28F22CBE2F56440300A0FC59 /* Glide */;
+			targetProxy = 28F22CCD2F56440300A0FC59 /* PBXContainerItemProxy */;
 		};
-		28F22CD82F56440300A0FC59  = {
+		28F22CD82F56440300A0FC59 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 28F22CBE2F56440300A0FC59 ;
-			targetProxy = 28F22CD72F56440300A0FC59 ;
+			target = 28F22CBE2F56440300A0FC59 /* Glide */;
+			targetProxy = 28F22CD72F56440300A0FC59 /* PBXContainerItemProxy */;
 		};
+/* End PBXTargetDependency section */
 
-
-
-		28F22CDE2F56440300A0FC59  = {
+/* Begin XCBuildConfiguration section */
+		28F22CDE2F56440300A0FC59 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -346,7 +346,7 @@
 			};
 			name = Debug;
 		};
-		28F22CDF2F56440300A0FC59  = {
+		28F22CDF2F56440300A0FC59 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -402,7 +402,7 @@
 			};
 			name = Release;
 		};
-		28F22CE12F56440300A0FC59  = {
+		28F22CE12F56440300A0FC59 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -441,7 +441,7 @@
 			};
 			name = Debug;
 		};
-		28F22CE22F56440300A0FC59  = {
+		28F22CE22F56440300A0FC59 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -480,7 +480,7 @@
 			};
 			name = Release;
 		};
-		28F22CE42F56440300A0FC59  = {
+		28F22CE42F56440300A0FC59 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -501,7 +501,7 @@
 			};
 			name = Debug;
 		};
-		28F22CE52F56440300A0FC59  = {
+		28F22CE52F56440300A0FC59 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -522,7 +522,7 @@
 			};
 			name = Release;
 		};
-		28F22CE72F56440300A0FC59  = {
+		28F22CE72F56440300A0FC59 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -541,7 +541,7 @@
 			};
 			name = Debug;
 		};
-		28F22CE82F56440300A0FC59  = {
+		28F22CE82F56440300A0FC59 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -560,49 +560,49 @@
 			};
 			name = Release;
 		};
+/* End XCBuildConfiguration section */
 
-
-
-		28F22CBA2F56440300A0FC59  = {
+/* Begin XCConfigurationList section */
+		28F22CBA2F56440300A0FC59 /* Build configuration list for PBXProject "Glide" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				28F22CDE2F56440300A0FC59 ,
-				28F22CDF2F56440300A0FC59 ,
+				28F22CDE2F56440300A0FC59 /* Debug */,
+				28F22CDF2F56440300A0FC59 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		28F22CE02F56440300A0FC59  = {
+		28F22CE02F56440300A0FC59 /* Build configuration list for PBXNativeTarget "Glide" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				28F22CE12F56440300A0FC59 ,
-				28F22CE22F56440300A0FC59 ,
+				28F22CE12F56440300A0FC59 /* Debug */,
+				28F22CE22F56440300A0FC59 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		28F22CE32F56440300A0FC59  = {
+		28F22CE32F56440300A0FC59 /* Build configuration list for PBXNativeTarget "GlideTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				28F22CE42F56440300A0FC59 ,
-				28F22CE52F56440300A0FC59 ,
+				28F22CE42F56440300A0FC59 /* Debug */,
+				28F22CE52F56440300A0FC59 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		28F22CE62F56440300A0FC59  = {
+		28F22CE62F56440300A0FC59 /* Build configuration list for PBXNativeTarget "GlideUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				28F22CE72F56440300A0FC59 ,
-				28F22CE82F56440300A0FC59 ,
+				28F22CE72F56440300A0FC59 /* Debug */,
+				28F22CE82F56440300A0FC59 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+/* End XCConfigurationList section */
 
-
-
-		AA00BB012F6500010039DA55  = {
+/* Begin XCRemoteSwiftPackageReference section */
+		AA00BB012F6500010039DA55 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
@@ -610,7 +610,7 @@
 				minimumVersion = 2.9.0;
 			};
 		};
-		AA00BB042F6500040039DA55  = {
+		AA00BB042F6500040039DA55 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
 			requirement = {
@@ -618,20 +618,20 @@
 				minimumVersion = 3.0.0;
 			};
 		};
+/* End XCRemoteSwiftPackageReference section */
 
-
-
-		AA00BB022F6500020039DA55  = {
+/* Begin XCSwiftPackageProductDependency section */
+		AA00BB022F6500020039DA55 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA00BB012F6500010039DA55 ;
+			package = AA00BB012F6500010039DA55 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
 		};
-		AA00BB052F6500050039DA55  = {
+		AA00BB052F6500050039DA55 /* PostHog */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA00BB042F6500040039DA55 ;
+			package = AA00BB042F6500040039DA55 /* XCRemoteSwiftPackageReference "posthog-ios" */;
 			productName = PostHog;
 		};
-
+/* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 28F22CB72F56440300A0FC59 ;
+	rootObject = 28F22CB72F56440300A0FC59 /* Project object */;
 }

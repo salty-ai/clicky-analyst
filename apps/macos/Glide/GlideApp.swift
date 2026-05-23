@@ -23,6 +23,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarPanelManager: MenuBarPanelManager?
     private let companionManager = CompanionManager()
     private var sparkleUpdaterController: SPUStandardUpdaterController?
+    private var onboardingWindowController: OnboardingWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("Glide: Starting...")
@@ -33,12 +34,21 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         GlideAnalytics.configure()
         GlideAnalytics.trackAppOpened()
 
-        menuBarPanelManager = MenuBarPanelManager(companionManager: companionManager)
+        // The companion manager owns permission polling, dictation, and the
+        // overlay regardless of whether onboarding has been completed, so we
+        // start it eagerly. Its `start()` is a no-op for the cursor overlay
+        // until `hasCompletedOnboarding` is true, so it's safe to call here.
         companionManager.start()
 
-        // Keep the notch island visible like the Electron app so the
-        // Listening / Thinking / Speaking state is always surfaced.
-        menuBarPanelManager?.showPanelOnLaunch()
+        // First launch: the menu-bar status item and Dynamic Island are
+        // deferred until the user finishes the desktop onboarding window.
+        // Any subsequent launch goes straight to the existing menu-bar
+        // experience.
+        if companionManager.hasCompletedOnboarding {
+            startMenuBarExperience()
+        } else {
+            presentFirstLaunchOnboardingWindow()
+        }
 
         registerAsLoginItemIfNeeded()
         
@@ -46,6 +56,47 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         companionManager.stop()
+    }
+
+    // MARK: - Onboarding
+
+    
+    
+    
+    private func presentFirstLaunchOnboardingWindow() {
+        GlideAnalytics.trackOnboardingStarted()
+
+        let onboardingController = OnboardingWindowController(
+            companionManager: companionManager,
+            onOnboardingCompleted: { [weak self] in
+                self?.handleOnboardingDidComplete()
+            }
+        )
+        onboardingWindowController = onboardingController
+        onboardingController.presentOnboardingWindow()
+    }
+
+    private func handleOnboardingDidComplete() {
+        // Drop the strong reference now that the window is gone. The
+        // controller already cleared its NSWindow.
+        onboardingWindowController = nil
+
+        // Now that we're back in accessory mode, bring up the regular
+        // menu-bar status item and the Dynamic Island.
+        startMenuBarExperience()
+    }
+
+    
+    
+    
+    private func startMenuBarExperience() {
+        if menuBarPanelManager != nil { return }
+        let newMenuBarPanelManager = MenuBarPanelManager(companionManager: companionManager)
+        menuBarPanelManager = newMenuBarPanelManager
+
+        // Keep the notch island visible like the Electron app so the
+        // Listening / Thinking / Speaking state is always surfaced.
+        newMenuBarPanelManager.showPanelOnLaunch()
     }
 
     
