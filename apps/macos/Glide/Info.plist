@@ -4,6 +4,25 @@
 <dict>
 	<key>LSUIElement</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Glide Auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(CLERK_CALLBACK_SCHEME)</string>
+			</array>
+		</dict>
+	</array>
+	<key>ClerkCallbackScheme</key>
+	<string>$(CLERK_CALLBACK_SCHEME)</string>
+	<key>ClerkPublishableKey</key>
+	<string>$(CLERK_PUBLISHABLE_KEY)</string>
+	<key>ClerkRedirectURL</key>
+	<string>$(CLERK_REDIRECT_URL)</string>
+	<key>GlideServerBaseURL</key>
+	<string>$(GLIDE_SERVER_BASE_URL)</string>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/julianjear/makesomething-mac-app/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>

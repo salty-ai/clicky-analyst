@@ -48,7 +48,7 @@ final class CompanionManager: ObservableObject {
 
     
     
-    private static let workerBaseURL = "http://localhost:8787"
+    private static let workerBaseURL = AppBundleConfiguration.serverBaseURL
 
     private lazy var claudeAPI: ClaudeAPI = {
         return ClaudeAPI(proxyURL: "\(Self.workerBaseURL)/chat", model: selectedModel)

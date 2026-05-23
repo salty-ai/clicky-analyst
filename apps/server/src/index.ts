@@ -1,5 +1,6 @@
+import { clerkMiddleware, getAuth } from "@clerk/hono";
 import { createGateway, stepCountIs, streamText, tool, type AssistantContent, type ModelMessage, type UserContent } from "ai";
-import { Hono } from "hono";
+import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 
@@ -8,6 +9,8 @@ interface Env {
   AI_GATEWAY_API_KEY: string;
   GEMINI_API_KEY: string;
   ASSEMBLYAI_API_KEY: string;
+  CLERK_SECRET_KEY?: string;
+  CLERK_PUBLISHABLE_KEY?: string;
 }
 
 type AnthropicMessage = {
@@ -45,9 +48,13 @@ app.use(
   })
 );
 
-app.post("/chat", (c) => handleChat(c.req.raw, c.env));
-app.post("/tts", (c) => handleTTS(c.req.raw, c.env));
-app.post("/transcribe-token", (c) => handleTranscribeToken(c.env));
+app.use("/chat", clerkMiddleware());
+app.use("/tts", clerkMiddleware());
+app.use("/transcribe-token", clerkMiddleware());
+
+app.post("/chat", requireAuth, (c) => handleChat(c.req.raw, c.env));
+app.post("/tts", requireAuth, (c) => handleTTS(c.req.raw, c.env));
+app.post("/transcribe-token", requireAuth, (c) => handleTranscribeToken(c.env));
 
 app.notFound((c) => c.text("Not found", 404));
 
@@ -57,6 +64,16 @@ app.onError((error, c) => {
 });
 
 export default app;
+
+function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
+  const { userId } = getAuth(c);
+
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  return next();
+}
 
 async function handleChat(request: Request, env: Env): Promise<Response> {
   const anthropicRequestBody = (await request.json()) as AnthropicRequestBody;

@@ -1,11 +1,27 @@
 import Foundation
 
 enum AppBundleConfiguration {
+    static var serverBaseURL: String {
+        stringValue(forKey: "GlideServerBaseURL") ?? "http://localhost:8787"
+    }
+
+    static var clerkPublishableKey: String? {
+        stringValue(forKey: "ClerkPublishableKey")
+    }
+
+    static var clerkCallbackScheme: String {
+        stringValue(forKey: "ClerkCallbackScheme") ?? Bundle.main.bundleIdentifier ?? "glide"
+    }
+
+    static var clerkRedirectURL: String {
+        stringValue(forKey: "ClerkRedirectURL") ?? "\(clerkCallbackScheme)://callback"
+    }
+
     static func stringValue(forKey key: String) -> String? {
         if let value = Bundle.main.object(forInfoDictionaryKey: key) as? String {
             let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedValue.isEmpty {
-                return trimmedValue
+            if let normalizedValue = normalizedBuildSettingValue(trimmedValue) {
+                return normalizedValue
             }
         }
 
@@ -16,6 +32,20 @@ enum AppBundleConfiguration {
         }
 
         let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedValue.isEmpty ? nil : trimmedValue
+        return normalizedBuildSettingValue(trimmedValue)
+    }
+
+    private static func normalizedBuildSettingValue(_ value: String) -> String? {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else { return nil }
+
+        // Xcode leaves unresolved build settings as literal strings like
+        // "$(GLIDE_SERVER_BASE_URL)". Treat those as missing so callers use
+        // their local defaults instead of building invalid URLs.
+        if trimmedValue.hasPrefix("$(") && trimmedValue.hasSuffix(")") {
+            return nil
+        }
+
+        return trimmedValue
     }
 }

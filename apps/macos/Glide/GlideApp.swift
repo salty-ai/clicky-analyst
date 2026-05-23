@@ -1,3 +1,4 @@
+import AppKit
 import ServiceManagement
 import SwiftUI
 import Sparkle
@@ -7,12 +8,17 @@ struct GlideApp: App {
     @NSApplicationDelegateAdaptor(CompanionAppDelegate.self) var appDelegate
 
     var body: some Scene {
-        
-        
-        
         Settings {
             EmptyView()
         }
+    }
+}
+
+extension GlideApp {
+    static func openAppAndActivate() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.unhide(nil)
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
     }
 }
 
@@ -30,6 +36,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         print("Glide: Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")")
 
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 0])
+        GlideAuthManager.shared.configureIfNeeded()
 
         GlideAnalytics.configure()
         GlideAnalytics.trackAppOpened()
@@ -111,6 +118,14 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 print("Glide: Failed to register as login item: \(error)")
             }
+        }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard urls.contains(where: { $0.scheme == AppBundleConfiguration.clerkCallbackScheme }) else { return }
+        GlideAuthManager.shared.configureIfNeeded()
+        if GlideAuthManager.shared.isSignedIn {
+            GlideApp.openAppAndActivate()
         }
     }
 

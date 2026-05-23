@@ -131,6 +131,7 @@ final class GlideDynamicIslandManager {
 
 private struct GlideIslandRoot: View {
     @ObservedObject var companionManager: CompanionManager
+    @ObservedObject private var authManager = GlideAuthManager.shared
     @State private var isOpen = false
     @State private var hoverCloseTask: Task<Void, Never>?
 
@@ -187,39 +188,88 @@ private struct GlideIslandRoot: View {
     // MARK: - Collapsed (notch bar showing state)
 
     private var collapsedBar: some View {
-        HStack(spacing: 0) {
+        ZStack {
+            // Gradient accent glow on the right side
             if isActive {
-                Text(stateLabel)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(1)
-                    .transition(.opacity.combined(with: .move(edge: .leading)))
-
-                Spacer(minLength: 0)
-
-                activeStateBars
-                    .transition(.opacity.combined(with: .scale))
-            } else {
-                Spacer(minLength: 0)
-                Circle()
-                    .stroke(.white.opacity(0.3), lineWidth: 1.5)
-                    .frame(width: 7, height: 7)
-                Spacer(minLength: 0)
+                HStack {
+                    Spacer()
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: stateGradientColors,
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: 90, height: 28)
+                        .blur(radius: 20)
+                        .opacity(0.4)
+                }
+                .padding(.trailing, 12)
+                .transition(.opacity)
             }
+
+            HStack(spacing: 0) {
+                if isActive {
+                    Text(stateLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                        .transition(.opacity.combined(with: .move(edge: .leading)))
+
+                    Spacer(minLength: 0)
+
+                    activeStateBars
+                        .transition(.opacity.combined(with: .scale))
+                } else {
+                    Spacer(minLength: 0)
+                    Circle()
+                        .fill(.white.opacity(0.15))
+                        .frame(width: 6, height: 6)
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.horizontal, 18)
         }
-        .padding(.horizontal, 18)
         .frame(maxWidth: .infinity)
         .frame(height: 36)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: companionManager.voiceState)
     }
 
     private var activeStateBars: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<4, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(stateColor.opacity(0.7))
-                    .frame(width: 2, height: stateBarHeight(at: index))
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            HStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { index in
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: stateGradientColors,
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                        .frame(width: 2.5, height: animatedBarHeight(at: index, date: timeline.date))
+                }
             }
+        }
+    }
+
+    private func animatedBarHeight(at index: Int, date: Date) -> CGFloat {
+        let time = CGFloat(date.timeIntervalSinceReferenceDate)
+        let phase = time * 3.2 + CGFloat(index) * 0.8
+        let wave = (sin(phase) + 1) / 2
+
+        switch companionManager.voiceState {
+        case .listening:
+            let base: CGFloat = 4
+            let audioBoost = companionManager.currentAudioPowerLevel * 8
+            return base + wave * 6 + audioBoost
+        case .processing:
+            return 3 + wave * 8
+        case .responding:
+            return 4 + wave * 5
+        case .idle:
+            return 3
         }
     }
 
@@ -246,11 +296,16 @@ private struct GlideIslandRoot: View {
             // Content
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
-                    if !companionManager.allPermissionsGranted || !companionManager.hasInputMonitoringPermission {
+                    if !authManager.isSignedIn {
+                        signInView
+                    } else if !companionManager.allPermissionsGranted || !companionManager.hasInputMonitoringPermission {
+                        signedInView
                         permissionsView
                     } else if !companionManager.hasCompletedOnboarding {
+                        signedInView
                         onboardingView
                     } else {
+                        signedInView
                         readyView
                     }
                 }
@@ -273,17 +328,17 @@ private struct GlideIslandRoot: View {
         case .listening:
             Image(systemName: "waveform")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.green.opacity(0.9))
+                .foregroundStyle(Color(hex: "#4ADE80"))
                 .symbolEffect(.variableColor.iterative, isActive: true)
         case .processing:
             Image(systemName: "ellipsis")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(DS.Colors.pink300.opacity(0.8))
+                .foregroundStyle(Color(hex: "#A78BFA"))
                 .symbolEffect(.pulse, isActive: true)
         case .responding:
             Image(systemName: "speaker.wave.2")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.purple.opacity(0.8))
+                .foregroundStyle(Color(hex: "#60A5FA"))
                 .symbolEffect(.variableColor.iterative, isActive: true)
         }
     }
@@ -300,25 +355,18 @@ private struct GlideIslandRoot: View {
     private var stateColor: Color {
         switch companionManager.voiceState {
         case .idle: .white.opacity(0.3)
-        case .listening: .green.opacity(0.9)
-        case .processing: DS.Colors.pink300.opacity(0.9)
-        case .responding: .purple.opacity(0.9)
+        case .listening: Color(hex: "#4ADE80")
+        case .processing: Color(hex: "#A78BFA")
+        case .responding: Color(hex: "#60A5FA")
         }
     }
 
-    private func stateBarHeight(at index: Int) -> CGFloat {
+    private var stateGradientColors: [Color] {
         switch companionManager.voiceState {
-        case .listening:
-            let profile: [CGFloat] = [4, 8, 10, 6]
-            return profile[index] + companionManager.currentAudioPowerLevel * 4
-        case .processing:
-            let profile: [CGFloat] = [3, 6, 8, 5]
-            return profile[index]
-        case .responding:
-            let profile: [CGFloat] = [5, 8, 6, 9]
-            return profile[index]
-        case .idle:
-            return 3
+        case .idle: [.white.opacity(0.1), .white.opacity(0.2)]
+        case .listening: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")]
+        case .processing: [Color(hex: "#7C3AED"), Color(hex: "#A78BFA")]
+        case .responding: [Color(hex: "#3B82F6"), Color(hex: "#60A5FA")]
         }
     }
 
@@ -377,6 +425,72 @@ private struct GlideIslandRoot: View {
     }
 
     // MARK: - Onboarding
+
+    private var signInView: some View {
+        VStack(spacing: 8) {
+            Button(action: { authManager.signInWithGoogle() }) {
+                HStack(spacing: 8) {
+                    if authManager.isSigningIn {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.65)
+                    } else {
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+
+                    Text(authManager.isSigningIn ? "Signing in..." : "Sign in with Google")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(Capsule(style: .continuous).fill(DS.Colors.pink400.opacity(0.22)))
+            }
+            .buttonStyle(.plain)
+            .disabled(authManager.isSigningIn)
+
+            if let errorMessage = authManager.errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.red.opacity(0.8))
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    private var signedInView: some View {
+        VStack(spacing: 8) {
+            Button(action: { GlideApp.openAppAndActivate() }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrowshape.turn.up.right.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Open Glide App")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(Capsule(style: .continuous).fill(DS.Colors.pink400.opacity(0.22)))
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { authManager.signOut() }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Sign Out")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(.white.opacity(0.42))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+            }
+            .buttonStyle(.plain)
+        }
+    }
 
     private var onboardingView: some View {
         Button("Start Onboarding") { companionManager.triggerOnboarding() }

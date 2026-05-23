@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
 allowBuilds:
+  '@clerk/shared': false
   electron: false
   electron-winstaller: false
   esbuild: true
@@ -13,3 +14,6 @@ catalog:
   typescript: ^6
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@4.20260520.1'
+  - '@clerk/backend@3.4.13'
+  - '@clerk/hono@0.1.31'
+  - '@clerk/shared@4.13.1'

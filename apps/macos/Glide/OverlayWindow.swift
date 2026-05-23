@@ -46,64 +46,37 @@ class OverlayWindow: NSWindow {
 
 struct MinimalPinkCursorPointer: Shape {
     func path(in rect: CGRect) -> Path {
-        let drawingSize = min(rect.width, rect.height)
-        let originX = rect.midX - drawingSize / 2.0
-        let originY = rect.midY - drawingSize / 2.0
+        let w = rect.width
+        let h = rect.height
+        let r: CGFloat = w * 0.06
 
-        func point(_ normalizedX: CGFloat, _ normalizedY: CGFloat) -> CGPoint {
-            CGPoint(
-                x: originX + drawingSize * normalizedX,
-                y: originY + drawingSize * normalizedY
-            )
-        }
-
-        let cursorPoints = [
-            point(0.32, 0.10),
-            point(0.88, 0.62),
-            point(0.57, 0.65),
-            point(0.43, 0.92),
-            point(0.26, 0.22)
-        ]
-        let cornerRadius = drawingSize * 0.075
-
-        func roundedPoint(from startPoint: CGPoint, toward endPoint: CGPoint, radius: CGFloat) -> CGPoint {
-            let deltaX = endPoint.x - startPoint.x
-            let deltaY = endPoint.y - startPoint.y
-            let distance = max(hypot(deltaX, deltaY), 0.001)
-            let clampedRadius = min(radius, distance / 2.0)
-            return CGPoint(
-                x: startPoint.x + (deltaX / distance) * clampedRadius,
-                y: startPoint.y + (deltaY / distance) * clampedRadius
-            )
-        }
+        // Arrow pointing top-right with a cut/notch at bottom-right
+        // Vertices: top-left, right tip, bottom (with notch cut inward)
+        let topLeft = CGPoint(x: w * 0.1, y: h * 0.05)
+        let rightTip = CGPoint(x: w * 0.95, y: h * 0.45)
+        let notchIn = CGPoint(x: w * 0.55, y: h * 0.6)   // the cut inward
+        let bottomPt = CGPoint(x: w * 0.35, y: h * 0.95)
 
         var path = Path()
+        path.move(to: CGPoint(x: topLeft.x + r, y: topLeft.y + r))
 
-        for pointIndex in cursorPoints.indices {
-            let previousPoint = cursorPoints[(pointIndex - 1 + cursorPoints.count) % cursorPoints.count]
-            let currentPoint = cursorPoints[pointIndex]
-            let nextPoint = cursorPoints[(pointIndex + 1) % cursorPoints.count]
+        // Top-left corner
+        path.addQuadCurve(to: CGPoint(x: topLeft.x + r * 1.5, y: topLeft.y), control: topLeft)
 
-            let roundedCornerStartPoint = roundedPoint(
-                from: currentPoint,
-                toward: previousPoint,
-                radius: cornerRadius
-            )
-            let roundedCornerEndPoint = roundedPoint(
-                from: currentPoint,
-                toward: nextPoint,
-                radius: cornerRadius
-            )
+        // To right tip
+        path.addLine(to: CGPoint(x: rightTip.x - r, y: rightTip.y - r * 0.3))
+        path.addQuadCurve(to: CGPoint(x: rightTip.x - r * 0.3, y: rightTip.y + r * 0.8), control: rightTip)
 
-            if pointIndex == cursorPoints.startIndex {
-                path.move(to: roundedCornerStartPoint)
-            } else {
-                path.addLine(to: roundedCornerStartPoint)
-            }
+        // To notch (the cut)
+        path.addLine(to: CGPoint(x: notchIn.x + r, y: notchIn.y - r * 0.3))
+        path.addQuadCurve(to: CGPoint(x: notchIn.x - r * 0.3, y: notchIn.y + r), control: notchIn)
 
-            path.addQuadCurve(to: roundedCornerEndPoint, control: currentPoint)
-        }
+        // To bottom point
+        path.addLine(to: CGPoint(x: bottomPt.x + r * 0.3, y: bottomPt.y - r))
+        path.addQuadCurve(to: CGPoint(x: bottomPt.x - r, y: bottomPt.y - r * 1.5), control: bottomPt)
 
+        // Back to top-left
+        path.addLine(to: CGPoint(x: topLeft.x + r, y: topLeft.y + r))
         path.closeSubpath()
         return path
     }
@@ -322,10 +295,10 @@ struct BlueCursorView: View {
             
             
             MinimalPinkCursorPointer()
-                .fill(Color(hex: "#F7A6C6"))
+                .fill(Color(hex: "#8B1A4A"))
                 .frame(width: 22, height: 22)
                 .rotationEffect(.degrees(triangleRotationDegrees))
-                .shadow(color: Color(hex: "#F7A6C6").opacity(0.35), radius: 5 + (buddyFlightScale - 1.0) * 14, x: 0, y: 0)
+                .shadow(color: Color(hex: "#8B1A4A").opacity(0.3), radius: 5 + (buddyFlightScale - 1.0) * 14, x: 0, y: 0)
                 .scaleEffect(buddyFlightScale)
                 .opacity(buddyIsVisibleOnThisScreen && (companionManager.voiceState == .idle || companionManager.voiceState == .responding) ? cursorOpacity : 0)
                 .position(cursorPosition)

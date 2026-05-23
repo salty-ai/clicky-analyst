@@ -39,6 +39,12 @@ class ClaudeAPI {
         return request
     }
 
+    private func addAuthorizationHeader(to request: inout URLRequest) async {
+        if let sessionToken = await GlideAuthManager.shared.sessionToken() {
+            request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
     
     
     
@@ -103,6 +109,7 @@ class ClaudeAPI {
         let startTime = Date()
 
         var request = makeAPIRequest()
+        await addAuthorizationHeader(to: &request)
 
         
         var messages: [[String: Any]] = []
@@ -216,6 +223,7 @@ class ClaudeAPI {
         let startTime = Date()
 
         var request = makeAPIRequest()
+        await addAuthorizationHeader(to: &request)
 
         var messages: [[String: Any]] = []
         for (userPlaceholder, assistantResponse) in conversationHistory {
