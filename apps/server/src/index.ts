@@ -1,12 +1,12 @@
 import { createGateway, stepCountIs, streamText, tool, type AssistantContent, type ModelMessage, type UserContent } from "ai";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { z } from "zod";
 
 
 interface Env {
   AI_GATEWAY_API_KEY: string;
   GEMINI_API_KEY: string;
-  GEMINI_TTS_MODEL?: string;
-  GEMINI_TTS_VOICE?: string;
   ASSEMBLYAI_API_KEY: string;
 }
 
@@ -34,54 +34,29 @@ type AnthropicRequestBody = {
   messages?: AnthropicMessage[];
 };
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
+const app = new Hono<{ Bindings: Env }>();
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders });
-    }
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowHeaders: ["Content-Type"],
+    allowMethods: ["POST", "OPTIONS"],
+  })
+);
 
-    if (request.method !== "POST") {
-      return new Response("Method not allowed", { status: 405, headers: corsHeaders });
-    }
+app.post("/chat", (c) => handleChat(c.req.raw, c.env));
+app.post("/tts", (c) => handleTTS(c.req.raw, c.env));
+app.post("/transcribe-token", (c) => handleTranscribeToken(c.env));
 
-    try {
-      let response: Response;
-      if (url.pathname === "/chat") {
-        response = await handleChat(request, env);
-      } else if (url.pathname === "/tts") {
-        response = await handleTTS(request, env);
-      } else if (url.pathname === "/transcribe-token") {
-        response = await handleTranscribeToken(env);
-      } else {
-        return new Response("Not found", { status: 404, headers: corsHeaders });
-      }
+app.notFound((c) => c.text("Not found", 404));
 
-      // Append CORS headers to the response
-      const newHeaders = new Headers(response.headers);
-      for (const [key, value] of Object.entries(corsHeaders)) {
-        newHeaders.set(key, value);
-      }
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: newHeaders,
-      });
-    } catch (error) {
-      console.error(`[${url.pathname}] Unhandled error:`, error);
-      return new Response(
-        JSON.stringify({ error: String(error) }),
-        { status: 500, headers: { "content-type": "application/json", ...corsHeaders } }
-      );
-    }
-  },
-};
+app.onError((error, c) => {
+  console.error(`[${new URL(c.req.url).pathname}] Unhandled error:`, error);
+  return c.json({ error: String(error) }, 500);
+});
+
+export default app;
 
 async function handleChat(request: Request, env: Env): Promise<Response> {
   const anthropicRequestBody = (await request.json()) as AnthropicRequestBody;
@@ -110,7 +85,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
 function toGatewayModelId(model: string | undefined): string {
   if (!model) {
-    return "anthropic/claude-opus-4.7";
+    return "moonshotai/kimi-k2.6";
   }
 
   if (model.includes("/")) {
@@ -274,8 +249,8 @@ async function handleTTS(request: Request, env: Env): Promise<Response> {
     });
   }
 
-  const geminiTTSModel = env.GEMINI_TTS_MODEL || "gemini-3.1-flash-tts-preview";
-  const geminiTTSVoice = env.GEMINI_TTS_VOICE || "Kore";
+  const geminiTTSModel = "gemini-3.1-flash-tts-preview";
+  const geminiTTSVoice = "Kore";
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${geminiTTSModel}:generateContent`,
     {

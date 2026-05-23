@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "ai": "^6.0.184",
+    "hono": "^4.12.21",
     "zod": "catalog:"
   },
   "devDependencies": {
