@@ -142,6 +142,7 @@ private struct GlideIslandRoot: View {
     private static let collapsedNotchWidth: CGFloat = 340
     private static let expandedNotchWidth: CGFloat = 440
     private static let containerHeight: CGFloat = 310
+    private static let hoverActivationHeight: CGFloat = 72
 
     private var isActive: Bool {
         companionManager.voiceState != .idle
@@ -149,17 +150,22 @@ private struct GlideIslandRoot: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                if isOpen {
-                    expandedBody
-                } else {
-                    collapsedBar
+            ZStack(alignment: .top) {
+                Color.clear
+                    .frame(width: Self.expandedNotchWidth, height: Self.hoverActivationHeight)
+                    .contentShape(Rectangle())
+
+                VStack(spacing: 0) {
+                    if isOpen {
+                        expandedBody
+                    } else {
+                        collapsedBar
+                    }
                 }
+                .frame(width: isOpen ? Self.expandedNotchWidth : Self.collapsedNotchWidth)
+                .background(.black)
+                .clipShape(GlideNotchShape(topRadius: 8, bottomRadius: isOpen ? 22 : 14))
             }
-            .frame(width: isOpen ? Self.expandedNotchWidth : Self.collapsedNotchWidth)
-            .background(.black)
-            .clipShape(GlideNotchShape(topRadius: 8, bottomRadius: isOpen ? 22 : 14))
-            .contentShape(GlideNotchShape(topRadius: 8, bottomRadius: isOpen ? 22 : 14))
             .onHover { hovering in
                 hoverCloseTask?.cancel()
                 if hovering {
