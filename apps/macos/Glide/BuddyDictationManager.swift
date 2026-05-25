@@ -5,12 +5,14 @@ import Foundation
 import Speech
 
 enum BuddyPushToTalkShortcut {
-    enum ShortcutOption {
+    enum ShortcutOption: String, CaseIterable, Identifiable {
         case shiftFunction
         case controlOption
         case shiftControl
         case controlOptionSpace
         case shiftControlSpace
+
+        var id: String { rawValue }
 
         var displayText: String {
             switch self {
@@ -83,10 +85,24 @@ enum BuddyPushToTalkShortcut {
         case keyUp
     }
 
-    static let currentShortcutOption: ShortcutOption = .controlOption
-    static let pushToTalkKeyCode: UInt16 = 49 
-    static let pushToTalkDisplayText = currentShortcutOption.displayText
-    static let pushToTalkTooltipText = "push to talk (\(pushToTalkDisplayText))"
+    private static let shortcutDefaultsKey = "BuddyPushToTalkShortcut.currentShortcutOption"
+
+    static var currentShortcutOption: ShortcutOption {
+        get {
+            guard let rawValue = UserDefaults.standard.string(forKey: shortcutDefaultsKey),
+                  let option = ShortcutOption(rawValue: rawValue) else {
+                return .controlOption
+            }
+            return option
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: shortcutDefaultsKey)
+        }
+    }
+
+    static let pushToTalkKeyCode: UInt16 = 49
+    static var pushToTalkDisplayText: String { currentShortcutOption.displayText }
+    static var pushToTalkTooltipText: String { "push to talk (\(pushToTalkDisplayText))" }
 
     static func shortcutTransition(
         for event: NSEvent,

@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import Combine
+import CoreAudio
 import SwiftUI
 
 // MARK: - Window
@@ -129,20 +130,32 @@ final class GlideDynamicIslandManager {
 
 // MARK: - Root View
 
+private enum GlideSettingsRoute: Equatable {
+    case main
+    case shortcut
+    case microphone
+}
+
 private struct GlideIslandRoot: View {
     @ObservedObject var companionManager: CompanionManager
     @ObservedObject private var authManager = GlideAuthManager.shared
     @State private var isOpen = false
+    @State private var isShowingSettings = false
+    @State private var selectedShortcut = BuddyPushToTalkShortcut.currentShortcutOption
+    @State private var microphoneDevices: [AudioInputDevice] = AudioInputDevice.availableInputDevices()
+    @State private var selectedMicrophoneID = AudioInputDevice.defaultInputDeviceID()
+    @State private var settingsRoute: GlideSettingsRoute = .main
     @State private var hoverCloseTask: Task<Void, Never>?
 
-    // The notch widens horizontally on hover so there's more room for the
-    // header / permissions / ready content to breathe. The hosting NSPanel
-    // stays a fixed (wider) size so the SwiftUI animation can run inside
-    // it without resizing the window.
-    private static let collapsedNotchWidth: CGFloat = 340
+    // Keep the resting island small enough to sit behind the MacBook notch.
+    // The clear hover target remains wider/taller so moving over the physical
+    // notch expands the island into the full controls.
+    private static let collapsedNotchWidth: CGFloat = 142
     private static let expandedNotchWidth: CGFloat = 440
+    private static let collapsedNotchHeight: CGFloat = 24
     private static let containerHeight: CGFloat = 310
-    private static let hoverActivationHeight: CGFloat = 72
+    private static let hoverActivationWidth: CGFloat = 220
+    private static let hoverActivationHeight: CGFloat = 32
 
     private var isActive: Bool {
         companionManager.voiceState != .idle
@@ -152,19 +165,23 @@ private struct GlideIslandRoot: View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 Color.clear
-                    .frame(width: Self.expandedNotchWidth, height: Self.hoverActivationHeight)
+                    .frame(width: Self.hoverActivationWidth, height: Self.hoverActivationHeight)
                     .contentShape(Rectangle())
 
                 VStack(spacing: 0) {
                     if isOpen {
-                        expandedBody
+                        if isShowingSettings {
+                            settingsBody
+                        } else {
+                            expandedBody
+                        }
                     } else {
                         collapsedBar
                     }
                 }
                 .frame(width: isOpen ? Self.expandedNotchWidth : Self.collapsedNotchWidth)
                 .background(.black)
-                .clipShape(GlideNotchShape(topRadius: 8, bottomRadius: isOpen ? 22 : 14))
+                .clipShape(GlideNotchShape(topRadius: isOpen ? 8 : 6, bottomRadius: isOpen ? 22 : 10))
             }
             .onHover { hovering in
                 hoverCloseTask?.cancel()
@@ -229,16 +246,12 @@ private struct GlideIslandRoot: View {
                         .transition(.opacity.combined(with: .scale))
                 } else {
                     Spacer(minLength: 0)
-                    Circle()
-                        .fill(.white.opacity(0.15))
-                        .frame(width: 6, height: 6)
-                    Spacer(minLength: 0)
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, isActive ? 12 : 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 36)
+        .frame(height: isActive ? 30 : Self.collapsedNotchHeight)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: companionManager.voiceState)
     }
 
@@ -294,16 +307,18 @@ private struct GlideIslandRoot: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                HStack(spacing: 6) {
-                    stateIcon
-                    Text(stateLabel)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.6))
-                }
+                stateIcon
                 Spacer()
-                Text("Glide")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
+                Button(action: { isShowingSettings.toggle() }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isShowingSettings ? DS.Colors.pink300 : .white.opacity(0.55))
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(.white.opacity(isShowingSettings ? 0.14 : 0.06)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Settings")
+
             }
             .padding(.horizontal, 18)
             .frame(height: 32)
@@ -477,34 +492,7 @@ private struct GlideIslandRoot: View {
     }
 
     private var signedInView: some View {
-        VStack(spacing: 8) {
-            Button(action: { GlideApp.openAppAndActivate() }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrowshape.turn.up.right.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text("Open Glide App")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundStyle(.white.opacity(0.9))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(Capsule(style: .continuous).fill(DS.Colors.pink400.opacity(0.22)))
-            }
-            .buttonStyle(.plain)
-
-            Button(action: { authManager.signOut() }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text("Sign Out")
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .foregroundStyle(.white.opacity(0.42))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
-            }
-            .buttonStyle(.plain)
-        }
+        EmptyView()
     }
 
     private var onboardingView: some View {
@@ -519,13 +507,207 @@ private struct GlideIslandRoot: View {
 
     // MARK: - Ready
 
+    private var settingsBody: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Button(action: {
+                    if settingsRoute == .main {
+                        isShowingSettings = false
+                    } else {
+                        settingsRoute = .main
+                    }
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                .buttonStyle(.plain)
+
+                Text(settingsTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                Spacer()
+                Image(systemName: settingsRoute == .main ? "gearshape.fill" : "checklist")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DS.Colors.pink300.opacity(0.9))
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 32)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                Group {
+                    switch settingsRoute {
+                    case .main:
+                        settingsMainView
+                    case .shortcut:
+                        shortcutSettingsView
+                    case .microphone:
+                        microphoneSettingsView
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+            }
+        }
+        .onAppear {
+            microphoneDevices = AudioInputDevice.availableInputDevices()
+            selectedMicrophoneID = AudioInputDevice.defaultInputDeviceID()
+            selectedShortcut = BuddyPushToTalkShortcut.currentShortcutOption
+        }
+    }
+
+    private var settingsTitle: String {
+        switch settingsRoute {
+        case .main: "Settings"
+        case .shortcut: "Voice shortcut"
+        case .microphone: "Default microphone"
+        }
+    }
+
+    private var selectedMicrophoneName: String {
+        microphoneDevices.first(where: { $0.id == selectedMicrophoneID })?.name ?? "System default"
+    }
+
+    private var settingsMainView: some View {
+        VStack(spacing: 10) {
+            Button(action: { settingsRoute = .shortcut }) {
+                settingsNavigationRow("command", "Voice shortcut", selectedShortcut.displayText)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: {
+                microphoneDevices = AudioInputDevice.availableInputDevices()
+                selectedMicrophoneID = AudioInputDevice.defaultInputDeviceID()
+                settingsRoute = .microphone
+            }) {
+                settingsNavigationRow("mic.fill", "Default microphone", selectedMicrophoneName)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { authManager.signOut() }) {
+                settingsActionRow("rectangle.portrait.and.arrow.right", "Log out")
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { NSApp.terminate(nil) }) {
+                settingsActionRow("power", "Quit Glide", destructive: true)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var shortcutSettingsView: some View {
+        VStack(spacing: 8) {
+            ForEach(BuddyPushToTalkShortcut.ShortcutOption.allCases) { option in
+                Button(action: {
+                    selectedShortcut = option
+                    BuddyPushToTalkShortcut.currentShortcutOption = option
+                }) {
+                    selectionRow(title: option.displayText, isSelected: selectedShortcut == option)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var microphoneSettingsView: some View {
+        VStack(spacing: 8) {
+            ForEach(microphoneDevices) { device in
+                Button(action: {
+                    selectedMicrophoneID = device.id
+                    AudioInputDevice.setDefaultInputDevice(id: device.id)
+                    microphoneDevices = AudioInputDevice.availableInputDevices()
+                }) {
+                    selectionRow(title: device.name, isSelected: selectedMicrophoneID == device.id)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func settingsNavigationRow(_ icon: String, _ title: String, _ value: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DS.Colors.pink300.opacity(0.75))
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.82))
+                Text(value)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.38))
+                    .lineLimit(1)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.white.opacity(0.32))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.055)))
+    }
+
+    private func selectionRow(title: String, isSelected: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isSelected ? DS.Colors.pink300 : .white.opacity(0.22))
+            Text(title)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(1)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(isSelected ? 0.09 : 0.045)))
+    }
+
+    private func settingsSection<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DS.Colors.pink300.opacity(0.75))
+                .frame(width: 18)
+            Text(title)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.82))
+            Spacer()
+            content()
+                .labelsHidden()
+                .tint(DS.Colors.pink300)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.055)))
+    }
+
+    private func settingsActionRow(_ icon: String, _ title: String, destructive: Bool = false) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 18)
+            Text(title)
+                .font(.system(size: 12.5, weight: .semibold))
+            Spacer()
+        }
+        .foregroundStyle(destructive ? Color.red.opacity(0.82) : .white.opacity(0.75))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.045)))
+    }
+
     private var readyView: some View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: "command")
                     .font(.system(size: 10))
                     .foregroundStyle(DS.Colors.pink300.opacity(0.6))
-                Text("Hold ⌃⌥ to talk")
+                Text("Hold \(BuddyPushToTalkShortcut.pushToTalkDisplayText) to talk")
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(.white.opacity(0.7))
                 Spacer()
@@ -579,5 +761,50 @@ private struct GlideIslandRoot: View {
                 .padding(.vertical, 8)
                 .buttonStyle(.plain)
         }
+    }
+}
+
+private struct AudioInputDevice: Identifiable, Hashable {
+    let id: AudioDeviceID
+    let name: String
+
+    static func defaultInputDeviceID() -> AudioDeviceID {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultInputDevice, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var deviceID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceID)
+        return deviceID
+    }
+
+    static func setDefaultInputDevice(id: AudioDeviceID) {
+        var newID = id
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultInputDevice, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, UInt32(MemoryLayout<AudioDeviceID>.size), &newID)
+    }
+
+    static func availableInputDevices() -> [AudioInputDevice] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var dataSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &dataSize) == noErr else { return [] }
+        var deviceIDs = Array(repeating: AudioDeviceID(0), count: Int(dataSize) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &dataSize, &deviceIDs) == noErr else { return [] }
+        return deviceIDs.compactMap { id in
+            guard hasInputStreams(deviceID: id) else { return nil }
+            return AudioInputDevice(id: id, name: deviceName(deviceID: id))
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private static func hasInputStreams(deviceID: AudioDeviceID) -> Bool {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreams, mScope: kAudioDevicePropertyScopeInput, mElement: kAudioObjectPropertyElementMain)
+        var dataSize: UInt32 = 0
+        return AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &dataSize) == noErr && dataSize > 0
+    }
+
+    private static func deviceName(deviceID: AudioDeviceID) -> String {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyName, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var name: CFString = "Microphone" as CFString
+        var size = UInt32(MemoryLayout<CFString>.size)
+        AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &name)
+        return name as String
     }
 }
