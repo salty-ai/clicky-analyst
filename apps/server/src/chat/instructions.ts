@@ -5,7 +5,7 @@ export function shouldUseAppIntegrationTools(request: string | undefined): boole
 
   const text = request.toLowerCase();
   const screenOnlyIntent = /\b(point|pointing|cursor|coordinate|coordinates|screen|screenshot|show me where|where do i click|where should i click|highlight|look at|see on my screen|ui|button|menu|window|click)\b/.test(text);
-  const explicitAppIntent = /\b(notion|gmail|email|slack|calendar|github|google drive|drive|docs|sheets|jira|linear|trello|asana|hubspot|salesforce|discord)\b/.test(text);
+  const explicitAppIntent = /\b(notion|gmail|email|slack|calendar|github|gitlab|google drive|drive|docs|sheets|slides|jira|linear|trello|asana|clickup|monday|airtable|hubspot|salesforce|pipedrive|zendesk|intercom|discord|outlook|onedrive|dropbox|shopify|stripe|quickbooks|xero|zoom|calendly|confluence|canva|youtube|twitter|linkedin|facebook|spotify|whatsapp|zoho|posthog)\b/.test(text);
   const externalActionIntent = /\b(send|create|update|delete|archive|schedule|invite|message|post|upload|download|search my|find my|add to|save to|move|rename)\b/.test(text);
 
   // Screen navigation and coordinate requests should use pointing tags, not Composio app tools.

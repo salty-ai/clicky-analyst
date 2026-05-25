@@ -5,113 +5,214 @@ import SwiftUI
 
 @MainActor
 final class AgentIntegrationsManager: ObservableObject {
+    struct Platform: Identifiable, Hashable {
+        let slug: String
+        let name: String
+        let logoURL: URL?
+
+        var id: String { slug }
+
+        init(slug: String, name: String, logoURL: URL? = nil, usesDefaultLogo: Bool = true) {
+            self.slug = slug
+            self.name = name
+            self.logoURL = logoURL ?? (usesDefaultLogo ? URL(string: "https://images.weserv.nl/?url=logos.composio.dev/api/\(slug)&output=png") : nil)
+        }
+    }
+
+    struct IntegrationState: Equatable {
+        var isConnected = false
+        var statusText = "Not connected"
+    }
+
+    static let platforms: [Platform] = [
+        Platform(slug: "notion", name: "Notion"),
+        Platform(slug: "gmail", name: "Gmail"),
+        Platform(slug: "googlecalendar", name: "Google Calendar"),
+        Platform(slug: "googledrive", name: "Google Drive"),
+        Platform(slug: "googledocs", name: "Google Docs"),
+        Platform(slug: "googlesheets", name: "Google Sheets"),
+        Platform(slug: "googleslides", name: "Google Slides"),
+        Platform(slug: "slack", name: "Slack"),
+        Platform(slug: "github", name: "GitHub"),
+        Platform(slug: "gitlab", name: "GitLab"),
+        Platform(slug: "jira", name: "Jira"),
+        Platform(slug: "linear", name: "Linear"),
+        Platform(slug: "trello", name: "Trello", usesDefaultLogo: false),
+        Platform(slug: "asana", name: "Asana"),
+        Platform(slug: "clickup", name: "ClickUp"),
+        Platform(slug: "monday", name: "monday.com"),
+        Platform(slug: "airtable", name: "Airtable"),
+        Platform(slug: "hubspot", name: "HubSpot"),
+        Platform(slug: "salesforce", name: "Salesforce"),
+        Platform(slug: "pipedrive", name: "Pipedrive"),
+        Platform(slug: "zendesk", name: "Zendesk"),
+        Platform(slug: "intercom", name: "Intercom"),
+        Platform(slug: "discord", name: "Discord"),
+        Platform(slug: "outlook", name: "Outlook"),
+        Platform(slug: "one_drive", name: "OneDrive"),
+        Platform(slug: "dropbox", name: "Dropbox"),
+        Platform(slug: "shopify", name: "Shopify"),
+        Platform(slug: "stripe", name: "Stripe"),
+        Platform(slug: "quickbooks", name: "QuickBooks"),
+        Platform(slug: "xero", name: "Xero"),
+        Platform(slug: "zoom", name: "Zoom"),
+        Platform(slug: "calendly", name: "Calendly"),
+        Platform(slug: "confluence", name: "Confluence"),
+        Platform(slug: "canva", name: "Canva"),
+        Platform(slug: "youtube", name: "YouTube"),
+        Platform(slug: "twitter", name: "X / Twitter"),
+        Platform(slug: "linkedin", name: "LinkedIn"),
+        Platform(slug: "facebook", name: "Facebook"),
+        Platform(slug: "spotify", name: "Spotify"),
+        Platform(slug: "whatsapp", name: "WhatsApp"),
+        Platform(slug: "zoho", name: "Zoho"),
+        Platform(slug: "posthog", name: "PostHog")
+    ]
+
     @Published private(set) var isLoading = false
     @Published private(set) var isConnecting = false
     @Published private(set) var isDisconnecting = false
-    @Published private(set) var isNotionConnected = false
-    @Published private(set) var notionStatusText = "Not connected"
+    @Published private(set) var activePlatformSlug: String?
+    @Published private(set) var states: [String: IntegrationState] = Dictionary(
+        uniqueKeysWithValues: AgentIntegrationsManager.platforms.map { ($0.slug, IntegrationState()) }
+    )
     @Published private(set) var errorMessage: String?
 
-    private struct NotionStatusResponse: Decodable {
+    var connectedPlatforms: [Platform] {
+        Self.platforms.filter { state(for: $0).isConnected }
+    }
+
+    var connectedSummary: String {
+        let connected = connectedPlatforms
+        if connected.isEmpty { return "Connect apps" }
+        if connected.count == 1 { return "\(connected[0].name) connected" }
+        return "\(connected.count) apps connected"
+    }
+
+    private struct ToolkitStatusResponse: Decodable {
         let configured: Bool?
         let connected: Bool
         let status: String?
     }
 
-    private struct NotionConnectResponse: Decodable {
+    private struct ToolkitConnectResponse: Decodable {
         let redirectUrl: String
     }
 
-    func refreshNotionStatus() {
+    func state(for platform: Platform) -> IntegrationState {
+        states[platform.slug] ?? IntegrationState()
+    }
+
+    func refreshStatuses() {
         Task {
-            await loadNotionStatus()
+            await loadStatuses()
         }
     }
 
-    func connectNotion() {
+    func connect(_ platform: Platform) {
         Task {
-            await beginNotionConnection()
+            await beginConnection(for: platform)
         }
     }
 
-    func disconnectNotion() {
+    func disconnect(_ platform: Platform) {
         Task {
-            await disconnectNotionConnection()
+            await disconnectConnection(for: platform)
         }
     }
 
-    private func loadNotionStatus() async {
+    private func loadStatuses() async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
-        do {
-            let request = try await makeAuthorizedRequest(path: "/integrations/notion/status", method: "GET")
-            let (data, response) = try await URLSession.shared.data(for: request)
-            try validate(response: response, data: data)
-            let status = try JSONDecoder().decode(NotionStatusResponse.self, from: data)
-
-            if status.configured == false {
-                isNotionConnected = false
-                notionStatusText = "Server not configured"
-            } else if status.connected {
-                isNotionConnected = true
-                notionStatusText = "Connected"
-            } else {
-                isNotionConnected = false
-                notionStatusText = status.status ?? "Not connected"
+        for platform in Self.platforms {
+            do {
+                let request = try await makeAuthorizedRequest(path: "/integrations/\(platform.slug)/status", method: "GET")
+                let (data, response) = try await URLSession.shared.data(for: request)
+                try validate(response: response, data: data)
+                let status = try JSONDecoder().decode(ToolkitStatusResponse.self, from: data)
+                states[platform.slug] = state(from: status)
+            } catch {
+                states[platform.slug] = IntegrationState(isConnected: false, statusText: "Unavailable")
+                errorMessage = error.localizedDescription
             }
-        } catch {
-            isNotionConnected = false
-            notionStatusText = "Unavailable"
-            errorMessage = error.localizedDescription
         }
     }
 
-    private func beginNotionConnection() async {
+    private func beginConnection(for platform: Platform) async {
         guard !isConnecting else { return }
         isConnecting = true
+        activePlatformSlug = platform.slug
         errorMessage = nil
-        defer { isConnecting = false }
+        defer {
+            isConnecting = false
+            activePlatformSlug = nil
+        }
 
         do {
-            let request = try await makeAuthorizedRequest(path: "/integrations/notion/connect", method: "POST")
+            let request = try await makeAuthorizedRequest(path: "/integrations/\(platform.slug)/connect", method: "POST")
             let (data, response) = try await URLSession.shared.data(for: request)
             try validate(response: response, data: data)
-            let connectResponse = try JSONDecoder().decode(NotionConnectResponse.self, from: data)
+            let connectResponse = try JSONDecoder().decode(ToolkitConnectResponse.self, from: data)
 
             guard let redirectURL = URL(string: connectResponse.redirectUrl) else {
                 throw NSError(domain: "AgentIntegrations", code: -1, userInfo: [
-                    NSLocalizedDescriptionKey: "Invalid Notion connection URL."
+                    NSLocalizedDescriptionKey: "Invalid \(platform.name) connection URL."
                 ])
             }
 
             NSWorkspace.shared.open(redirectURL)
-            notionStatusText = "Waiting for Notion"
+            states[platform.slug] = IntegrationState(isConnected: false, statusText: "Waiting for \(platform.name)")
 
             try? await Task.sleep(nanoseconds: 1_500_000_000)
-            await loadNotionStatus()
+            await loadStatuses()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func disconnectNotionConnection() async {
+    private func disconnectConnection(for platform: Platform) async {
         guard !isDisconnecting else { return }
         isDisconnecting = true
+        activePlatformSlug = platform.slug
         errorMessage = nil
-        defer { isDisconnecting = false }
+        defer {
+            isDisconnecting = false
+            activePlatformSlug = nil
+        }
 
         do {
-            let request = try await makeAuthorizedRequest(path: "/integrations/notion/disconnect", method: "DELETE")
+            let request = try await makeAuthorizedRequest(path: "/integrations/\(platform.slug)/disconnect", method: "DELETE")
             let (data, response) = try await URLSession.shared.data(for: request)
             try validate(response: response, data: data)
-            isNotionConnected = false
-            notionStatusText = "Not connected"
+            states[platform.slug] = IntegrationState(isConnected: false, statusText: "Not connected")
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func state(from status: ToolkitStatusResponse) -> IntegrationState {
+        if status.configured == false {
+            return IntegrationState(isConnected: false, statusText: "Server not configured")
+        }
+        if status.connected {
+            return IntegrationState(isConnected: true, statusText: "Connected")
+        }
+        return IntegrationState(isConnected: false, statusText: displayStatus(status.status))
+    }
+
+    private func displayStatus(_ status: String?) -> String {
+        guard let status, !status.isEmpty else { return "Not connected" }
+        if status == "NOT_CONNECTED" { return "Not connected" }
+
+        return status
+            .replacingOccurrences(of: "_", with: " ")
+            .lowercased()
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 
     private func makeAuthorizedRequest(path: String, method: String) async throws -> URLRequest {
@@ -142,6 +243,81 @@ final class AgentIntegrationsManager: ObservableObject {
             throw NSError(domain: "AgentIntegrations", code: httpResponse.statusCode, userInfo: [
                 NSLocalizedDescriptionKey: body
             ])
+        }
+    }
+}
+
+struct PlatformLogoView: View {
+    let platform: AgentIntegrationsManager.Platform
+    let isConnected: Bool
+    let size: CGFloat
+
+    @StateObject private var imageLoader = PlatformLogoImageLoader.shared
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .fill(Color.white.opacity(isConnected ? 0.1 : 0.055))
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .stroke(isConnected ? DS.Colors.success.opacity(0.35) : Color.white.opacity(0.055), lineWidth: 0.6)
+                )
+
+            if let image = platform.logoURL.flatMap({ imageLoader.image(for: $0) }) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(size * 0.2)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(width: size, height: size)
+        .onAppear {
+            if let logoURL = platform.logoURL {
+                imageLoader.load(logoURL)
+            }
+        }
+    }
+
+    private var fallbackLogo: some View {
+        Text(String(platform.name.prefix(1)).uppercased())
+            .font(.system(size: size * 0.48, weight: .bold, design: .rounded))
+            .foregroundColor(isConnected ? DS.Colors.success : DS.Colors.textTertiary)
+    }
+}
+
+@MainActor
+final class PlatformLogoImageLoader: ObservableObject {
+    static let shared = PlatformLogoImageLoader()
+
+    @Published private var images: [URL: NSImage] = [:]
+    private var inFlightTasks: [URL: Task<Void, Never>] = [:]
+
+    func image(for url: URL) -> NSImage? {
+        images[url]
+    }
+
+    func load(_ url: URL) {
+        guard images[url] == nil, inFlightTasks[url] == nil else { return }
+
+        inFlightTasks[url] = Task {
+            defer { inFlightTasks[url] = nil }
+
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard
+                    let httpResponse = response as? HTTPURLResponse,
+                    (200...299).contains(httpResponse.statusCode),
+                    let image = NSImage(data: data)
+                else {
+                    return
+                }
+
+                images[url] = image
+            } catch {
+                return
+            }
         }
     }
 }
@@ -196,7 +372,7 @@ struct CompanionPanelView: View {
         .frame(width: 320)
         .background(panelBackground)
         .onAppear {
-            agentIntegrationsManager.refreshNotionStatus()
+            agentIntegrationsManager.refreshStatuses()
         }
     }
 
@@ -254,7 +430,7 @@ struct CompanionPanelView: View {
         return Button(action: {
             selectedTab = tab
             if tab == .agents {
-                agentIntegrationsManager.refreshNotionStatus()
+                agentIntegrationsManager.refreshStatuses()
             }
         }) {
             HStack(spacing: 5) {
@@ -306,7 +482,14 @@ struct CompanionPanelView: View {
                 .foregroundColor(DS.Colors.textTertiary)
                 .padding(.top, 16)
 
-            notionIntegrationRow
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(AgentIntegrationsManager.platforms) { platform in
+                        integrationRow(platform: platform)
+                    }
+                }
+            }
+            .frame(maxHeight: 360)
 
             if let errorMessage = agentIntegrationsManager.errorMessage {
                 Text(errorMessage)
@@ -318,30 +501,31 @@ struct CompanionPanelView: View {
         .padding(.horizontal, 16)
     }
 
-    private var notionIntegrationRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(agentIntegrationsManager.isNotionConnected ? DS.Colors.success : DS.Colors.textTertiary)
-                .frame(width: 18)
+    private func integrationRow(platform: AgentIntegrationsManager.Platform) -> some View {
+        let state = agentIntegrationsManager.state(for: platform)
+        let isBusy = agentIntegrationsManager.activePlatformSlug == platform.slug
+
+        return HStack(spacing: 10) {
+            PlatformLogoView(platform: platform, isConnected: state.isConnected, size: 22)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Notion")
+                Text(platform.name)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(DS.Colors.textSecondary)
 
-                Text(agentIntegrationsManager.notionStatusText)
+                Text(state.statusText)
                     .font(.system(size: 10))
                     .foregroundColor(DS.Colors.textTertiary)
+                    .lineLimit(1)
             }
 
             Spacer()
 
-            if agentIntegrationsManager.isNotionConnected {
+            if state.isConnected {
                 Button(action: {
-                    agentIntegrationsManager.disconnectNotion()
+                    agentIntegrationsManager.disconnect(platform)
                 }) {
-                    Text(agentIntegrationsManager.isDisconnecting ? "Removing" : "Disconnect")
+                    Text(isBusy && agentIntegrationsManager.isDisconnecting ? "Removing" : "Disconnect")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(DS.Colors.warning)
                         .padding(.horizontal, 10)
@@ -352,13 +536,13 @@ struct CompanionPanelView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading)
+                .disabled(agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading)
                 .pointerCursor()
             } else {
                 Button(action: {
-                    agentIntegrationsManager.connectNotion()
+                    agentIntegrationsManager.connect(platform)
                 }) {
-                    Text(agentIntegrationsManager.isConnecting ? "Opening" : "Connect")
+                    Text(isBusy && agentIntegrationsManager.isConnecting ? "Opening" : "Connect")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(DS.Colors.textOnAccent)
                         .padding(.horizontal, 10)
@@ -369,7 +553,7 @@ struct CompanionPanelView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading)
+                .disabled(agentIntegrationsManager.isConnecting || agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading)
                 .pointerCursor()
             }
         }

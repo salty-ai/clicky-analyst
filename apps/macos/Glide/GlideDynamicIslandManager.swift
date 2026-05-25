@@ -76,7 +76,7 @@ final class GlideDynamicIslandManager {
     // The inner SwiftUI content animates between the collapsed and expanded
     // widths; the outer window stays this fixed size so we don't have to
     // resize the NSPanel on hover.
-    private static let containerSize = CGSize(width: 440, height: 310)
+    private static let containerSize = CGSize(width: 520, height: 360)
 
     init(companionManager: CompanionManager) {
         self.companionManager = companionManager
@@ -155,9 +155,11 @@ private struct GlideIslandRoot: View {
     private static let collapsedNotchWidth: CGFloat = 142
     private static let activeNotchWidth: CGFloat = 360
     private static let expandedNotchWidth: CGFloat = 440
+    private static let agentsNotchWidth: CGFloat = 520
     private static let collapsedNotchHeight: CGFloat = 24
     private static let activeNotchHeight: CGFloat = 38
     private static let containerHeight: CGFloat = 310
+    private static let agentsContainerHeight: CGFloat = 360
     private static let hoverActivationWidth: CGFloat = 220
     private static let hoverActivationHeight: CGFloat = 32
 
@@ -166,8 +168,13 @@ private struct GlideIslandRoot: View {
     }
 
     private var currentNotchWidth: CGFloat {
+        if isOpen && isShowingSettings && settingsRoute == .agents { return Self.agentsNotchWidth }
         if isOpen { return Self.expandedNotchWidth }
         return isActive ? Self.activeNotchWidth : Self.collapsedNotchWidth
+    }
+
+    private var currentContainerHeight: CGFloat {
+        isOpen && isShowingSettings && settingsRoute == .agents ? Self.agentsContainerHeight : Self.containerHeight
     }
 
     private var currentNotchBottomRadius: CGFloat {
@@ -218,7 +225,7 @@ private struct GlideIslandRoot: View {
 
             Spacer(minLength: 0)
         }
-        .frame(width: Self.expandedNotchWidth, height: Self.containerHeight, alignment: .top)
+        .frame(width: Self.agentsNotchWidth, height: currentContainerHeight, alignment: .top)
         .allowsHitTesting(true)
     }
 
@@ -249,22 +256,21 @@ private struct GlideIslandRoot: View {
             HStack(spacing: 0) {
                 if isActive {
                     Text(stateLabel)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.82))
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.78))
                         .lineLimit(1)
                         .transition(.opacity.combined(with: .move(edge: .leading)))
 
                     Spacer(minLength: 24)
 
                     activeStateBars
-                        .frame(width: 76, alignment: .trailing)
+                        .frame(width: 58, alignment: .trailing)
                         .transition(.opacity.combined(with: .scale))
                 } else {
                     Spacer(minLength: 0)
                 }
             }
-            .padding(.leading, isActive ? 18 : 0)
-            .padding(.trailing, isActive ? 18 : 0)
+            .padding(.horizontal, isActive ? 18 : 0)
         }
         .frame(maxWidth: .infinity)
         .frame(height: isActive ? Self.activeNotchHeight : Self.collapsedNotchHeight)
@@ -273,7 +279,7 @@ private struct GlideIslandRoot: View {
 
     private var activeStateBars: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 36.0)) { timeline in
-            HStack(alignment: .center, spacing: 3) {
+            HStack(alignment: .center, spacing: 2.5) {
                 ForEach(0..<9, id: \.self) { index in
                     Capsule()
                         .fill(
@@ -283,7 +289,7 @@ private struct GlideIslandRoot: View {
                                 endPoint: .top
                             )
                         )
-                        .frame(width: 3, height: animatedBarHeight(at: index, date: timeline.date))
+                        .frame(width: 2.4, height: animatedBarHeight(at: index, date: timeline.date) * 0.82)
                 }
             }
             .animation(.linear(duration: 0.08), value: companionManager.currentAudioPowerLevel)
@@ -558,8 +564,8 @@ private struct GlideIslandRoot: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(DS.Colors.pink300.opacity(0.9))
             }
-            .padding(.horizontal, 18)
-            .frame(height: 32)
+            .padding(.horizontal, settingsRoute == .agents ? 22 : 18)
+            .frame(height: settingsRoute == .agents ? 40 : 32)
 
             ScrollView(.vertical, showsIndicators: false) {
                 Group {
@@ -574,8 +580,8 @@ private struct GlideIslandRoot: View {
                         microphoneSettingsView
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
+                .padding(.horizontal, settingsRoute == .agents ? 20 : 14)
+                .padding(.top, settingsRoute == .agents ? 10 : 8)
                 .padding(.bottom, 16)
             }
         }
@@ -616,13 +622,13 @@ private struct GlideIslandRoot: View {
             .buttonStyle(.plain)
 
             Button(action: {
-                agentIntegrationsManager.refreshNotionStatus()
+                agentIntegrationsManager.refreshStatuses()
                 settingsRoute = .agents
             }) {
                 settingsNavigationRow(
                     "app.connected.to.app.below.fill",
                     "Agents",
-                    agentIntegrationsManager.isNotionConnected ? "Notion connected" : "Connect apps"
+                    agentIntegrationsManager.connectedSummary
                 )
             }
             .buttonStyle(.plain)
@@ -641,7 +647,14 @@ private struct GlideIslandRoot: View {
 
     private var agentsSettingsView: some View {
         VStack(spacing: 10) {
-            notionAgentRow
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: 0) {
+                    ForEach(AgentIntegrationsManager.platforms) { platform in
+                        agentRow(platform: platform)
+                    }
+                }
+            }
+            .frame(maxHeight: 274)
 
             if let errorMessage = agentIntegrationsManager.errorMessage {
                 Text(errorMessage)
@@ -653,62 +666,67 @@ private struct GlideIslandRoot: View {
             }
         }
         .onAppear {
-            agentIntegrationsManager.refreshNotionStatus()
+            agentIntegrationsManager.refreshStatuses()
         }
     }
 
-    private var notionAgentRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: agentIntegrationsManager.isNotionConnected ? "checkmark.circle.fill" : "doc.text")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(agentIntegrationsManager.isNotionConnected ? Color.green : DS.Colors.pink300.opacity(0.75))
-                .frame(width: 18)
+    private func agentRow(platform: AgentIntegrationsManager.Platform) -> some View {
+        let state = agentIntegrationsManager.state(for: platform)
+        let isBusy = agentIntegrationsManager.activePlatformSlug == platform.slug
+
+        return HStack(spacing: 12) {
+            PlatformLogoView(platform: platform, isConnected: state.isConnected, size: 26)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Notion")
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.82))
-                Text(agentIntegrationsManager.notionStatusText)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.38))
+                Text(platform.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.86))
+                Text(state.statusText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.36))
                     .lineLimit(1)
             }
 
             Spacer()
 
-            if agentIntegrationsManager.isNotionConnected {
+            if state.isConnected {
                 Button(action: {
-                    agentIntegrationsManager.disconnectNotion()
+                    agentIntegrationsManager.disconnect(platform)
                 }) {
-                    Text(agentIntegrationsManager.isDisconnecting ? "Removing" : "Disconnect")
+                    Text(isBusy && agentIntegrationsManager.isDisconnecting ? "Removing" : "Disconnect")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.red.opacity(0.86))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Capsule(style: .continuous).fill(Color.red.opacity(0.12)))
+                        .frame(minWidth: 86)
+                        .padding(.vertical, 6)
+                        .background(Capsule(style: .continuous).fill(Color.red.opacity(0.1)))
                 }
                 .buttonStyle(.plain)
-                .disabled(agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading)
-                .opacity((agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
+                .disabled(agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading)
+                .opacity((agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
             } else {
                 Button(action: {
-                    agentIntegrationsManager.connectNotion()
+                    agentIntegrationsManager.connect(platform)
                 }) {
-                    Text(agentIntegrationsManager.isConnecting ? "Opening" : "Connect")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Capsule(style: .continuous).fill(.white.opacity(0.1)))
+                    Text(isBusy && agentIntegrationsManager.isConnecting ? "Opening" : "Connect")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .frame(minWidth: 86)
+                        .padding(.vertical, 6)
+                        .background(Capsule(style: .continuous).fill(.white.opacity(0.09)))
                 }
                 .buttonStyle(.plain)
-                .disabled(agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading)
-                .opacity((agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
+                .disabled(agentIntegrationsManager.isConnecting || agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading)
+                .opacity((agentIntegrationsManager.isConnecting || agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.055)))
+        .padding(.horizontal, 4)
+        .padding(.vertical, 9)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.6)
+                .foregroundStyle(.white.opacity(0.06)),
+            alignment: .bottom
+        )
     }
 
     private var shortcutSettingsView: some View {
