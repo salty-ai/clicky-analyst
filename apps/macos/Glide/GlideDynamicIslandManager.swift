@@ -537,8 +537,31 @@ private struct GlideIslandRoot: View {
                     set: { companionManager.setGlideCursorEnabled($0) }
                 ))
                 .toggleStyle(.switch)
-                .tint(DS.Colors.pink400)
+                .tint(companionManager.selectedCursorColor.accentColor)
                 .scaleEffect(0.75)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+
+            HStack(spacing: 10) {
+                Text("Cursor color")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.8))
+                Spacer()
+                ForEach(GlideCursorColor.allCases) { color in
+                    Button(action: { companionManager.setSelectedCursorColor(color) }) {
+                        Circle()
+                            .fill(color.accentColor)
+                            .frame(width: 18, height: 18)
+                            .overlay(
+                                Circle()
+                                    .stroke(.white.opacity(companionManager.selectedCursorColor == color ? 0.9 : 0.2), lineWidth: companionManager.selectedCursorColor == color ? 2 : 1)
+                            )
+                            .shadow(color: color.accentColor.opacity(companionManager.selectedCursorColor == color ? 0.5 : 0), radius: 6, x: 0, y: 0)
+                            .accessibilityLabel(color.displayName)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

@@ -190,6 +190,9 @@ struct BlueCursorView: View {
     ]
 
     var body: some View {
+        let cursorPrimaryColor = companionManager.selectedCursorColor.primaryColor
+        let cursorAccentColor = companionManager.selectedCursorColor.accentColor
+
         ZStack {
             
             Color.black.opacity(0.001)
@@ -203,8 +206,8 @@ struct BlueCursorView: View {
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(DS.Colors.overlayCursorBlue)
-                            .shadow(color: DS.Colors.overlayCursorBlue.opacity(0.5), radius: 6, x: 0, y: 0)
+                            .fill(cursorAccentColor)
+                            .shadow(color: cursorAccentColor.opacity(0.5), radius: 6, x: 0, y: 0)
                     )
                     .fixedSize()
                     .overlay(
@@ -231,8 +234,8 @@ struct BlueCursorView: View {
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(DS.Colors.overlayCursorBlue)
-                            .shadow(color: DS.Colors.overlayCursorBlue.opacity(0.5), radius: 6, x: 0, y: 0)
+                            .fill(cursorAccentColor)
+                            .shadow(color: cursorAccentColor.opacity(0.5), radius: 6, x: 0, y: 0)
                     )
                     .fixedSize()
                     .overlay(
@@ -261,9 +264,9 @@ struct BlueCursorView: View {
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(DS.Colors.overlayCursorBlue)
+                            .fill(cursorAccentColor)
                             .shadow(
-                                color: DS.Colors.overlayCursorBlue.opacity(0.5 + (1.0 - navigationBubbleScale) * 1.0),
+                                color: cursorAccentColor.opacity(0.5 + (1.0 - navigationBubbleScale) * 1.0),
                                 radius: 6 + (1.0 - navigationBubbleScale) * 16,
                                 x: 0, y: 0
                             )
@@ -295,10 +298,10 @@ struct BlueCursorView: View {
             
             
             MinimalPinkCursorPointer()
-                .fill(Color(hex: "#8B1A4A"))
+                .fill(cursorPrimaryColor)
                 .frame(width: 22, height: 22)
                 .rotationEffect(.degrees(triangleRotationDegrees))
-                .shadow(color: Color(hex: "#8B1A4A").opacity(0.3), radius: 5 + (buddyFlightScale - 1.0) * 14, x: 0, y: 0)
+                .shadow(color: cursorPrimaryColor.opacity(0.3), radius: 5 + (buddyFlightScale - 1.0) * 14, x: 0, y: 0)
                 .scaleEffect(buddyFlightScale)
                 .opacity(buddyIsVisibleOnThisScreen && (companionManager.voiceState == .idle || companionManager.voiceState == .responding) ? cursorOpacity : 0)
                 .position(cursorPosition)
@@ -315,14 +318,14 @@ struct BlueCursorView: View {
                 )
 
             
-            BlueCursorWaveformView(audioPowerLevel: companionManager.currentAudioPowerLevel)
+            BlueCursorWaveformView(audioPowerLevel: companionManager.currentAudioPowerLevel, cursorColor: cursorAccentColor)
                 .opacity(buddyIsVisibleOnThisScreen && companionManager.voiceState == .listening ? cursorOpacity : 0)
                 .position(cursorPosition)
                 .animation(.spring(response: 0.2, dampingFraction: 0.6, blendDuration: 0), value: cursorPosition)
                 .animation(.easeIn(duration: 0.15), value: companionManager.voiceState)
 
             
-            BlueCursorSpinnerView()
+            BlueCursorSpinnerView(cursorColor: cursorAccentColor)
                 .opacity(buddyIsVisibleOnThisScreen && companionManager.voiceState == .processing ? cursorOpacity : 0)
                 .position(cursorPosition)
                 .animation(.spring(response: 0.2, dampingFraction: 0.6, blendDuration: 0), value: cursorPosition)
@@ -710,17 +713,17 @@ struct BlueCursorView: View {
 
 private struct BlueCursorWaveformView: View {
     let audioPowerLevel: CGFloat
+    let cursorColor: Color
 
     private let barCount = 5
     private let listeningBarProfile: [CGFloat] = [0.4, 0.7, 1.0, 0.7, 0.4]
-    private let cursorPinkColor = Color(hex: "#F7A6C6")
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 36.0)) { timelineContext in
             HStack(alignment: .center, spacing: 2) {
                 ForEach(0..<barCount, id: \.self) { barIndex in
                     RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                        .fill(cursorPinkColor)
+                        .fill(cursorColor)
                         .frame(
                             width: 2,
                             height: barHeight(
@@ -730,7 +733,7 @@ private struct BlueCursorWaveformView: View {
                         )
                 }
             }
-            .shadow(color: cursorPinkColor.opacity(0.45), radius: 5, x: 0, y: 0)
+            .shadow(color: cursorColor.opacity(0.45), radius: 5, x: 0, y: 0)
             .animation(.linear(duration: 0.08), value: audioPowerLevel)
         }
     }
@@ -750,9 +753,8 @@ private struct BlueCursorWaveformView: View {
 
 
 private struct BlueCursorSpinnerView: View {
+    let cursorColor: Color
     @State private var isSpinning = false
-
-    private let cursorPinkColor = Color(hex: "#F7A6C6")
 
     var body: some View {
         Circle()
@@ -760,8 +762,8 @@ private struct BlueCursorSpinnerView: View {
             .stroke(
                 AngularGradient(
                     colors: [
-                        cursorPinkColor.opacity(0.0),
-                        cursorPinkColor
+                        cursorColor.opacity(0.0),
+                        cursorColor
                     ],
                     center: .center
                 ),
@@ -769,7 +771,7 @@ private struct BlueCursorSpinnerView: View {
             )
             .frame(width: 14, height: 14)
             .rotationEffect(.degrees(isSpinning ? 360 : 0))
-            .shadow(color: cursorPinkColor.opacity(0.45), radius: 5, x: 0, y: 0)
+            .shadow(color: cursorColor.opacity(0.45), radius: 5, x: 0, y: 0)
             .onAppear {
                 withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
                     isSpinning = true

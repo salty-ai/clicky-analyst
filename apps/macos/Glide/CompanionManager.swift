@@ -11,6 +11,45 @@ enum CompanionVoiceState {
     case responding
 }
 
+enum GlideCursorColor: String, CaseIterable, Identifiable {
+    case green
+    case blue
+    case yellow
+    case pink
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .green: "Green"
+        case .blue: "Blue"
+        case .yellow: "Yellow"
+        case .pink: "Current"
+        }
+    }
+
+    var primaryHex: String {
+        switch self {
+        case .green: "#22C55E"
+        case .blue: "#3B82F6"
+        case .yellow: "#FACC15"
+        case .pink: "#8B1A4A"
+        }
+    }
+
+    var accentHex: String {
+        switch self {
+        case .green: "#4ADE80"
+        case .blue: "#60A5FA"
+        case .yellow: "#FDE047"
+        case .pink: "#F7A6C6"
+        }
+    }
+
+    var primaryColor: Color { Color(hex: primaryHex) }
+    var accentColor: Color { Color(hex: accentHex) }
+}
+
 @MainActor
 final class CompanionManager: ObservableObject {
     @Published private(set) var voiceState: CompanionVoiceState = .idle
@@ -87,6 +126,13 @@ final class CompanionManager: ObservableObject {
 
     
     @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedAIModel") ?? "openai/gpt-5.4-mini"
+
+    @Published var selectedCursorColor: GlideCursorColor = GlideCursorColor(rawValue: UserDefaults.standard.string(forKey: "selectedCursorColor") ?? "") ?? .pink
+
+    func setSelectedCursorColor(_ color: GlideCursorColor) {
+        selectedCursorColor = color
+        UserDefaults.standard.set(color.rawValue, forKey: "selectedCursorColor")
+    }
 
     func setSelectedModel(_ model: String) {
         selectedModel = model
