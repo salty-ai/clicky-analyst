@@ -148,6 +148,7 @@ private struct GlideIslandRoot: View {
     @State private var selectedMicrophoneID = AudioInputDevice.defaultInputDeviceID()
     @State private var settingsRoute: GlideSettingsRoute = .main
     @State private var hoverCloseTask: Task<Void, Never>?
+    @Namespace private var cursorSelectionNamespace
 
     // Keep the resting island small enough to sit behind the MacBook notch.
     // The clear hover target remains wider/taller so moving over the physical
@@ -863,30 +864,68 @@ private struct GlideIslandRoot: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Cursor color")
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(.white.opacity(0.8))
-                Spacer()
-                ForEach(GlideCursorColor.allCases) { color in
-                    Button(action: { companionManager.setSelectedCursorColor(color) }) {
-                        Circle()
-                            .fill(color.accentColor)
-                            .frame(width: 18, height: 18)
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(companionManager.selectedCursorColor == color ? 0.9 : 0.2), lineWidth: companionManager.selectedCursorColor == color ? 2 : 1)
-                            )
-                            .shadow(color: color.accentColor.opacity(companionManager.selectedCursorColor == color ? 0.5 : 0), radius: 6, x: 0, y: 0)
-                            .accessibilityLabel(color.displayName)
+
+                HStack(spacing: 0) {
+                    ForEach(GlideCursorColor.allCases) { color in
+                        cursorColorSegment(color)
                     }
-                    .buttonStyle(.plain)
                 }
+                .frame(height: 42)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.white.opacity(0.055))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.white.opacity(0.08), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
         }
+    }
+
+    private func cursorColorSegment(_ color: GlideCursorColor) -> some View {
+        let isSelected = companionManager.selectedCursorColor == color
+
+        return Button(action: { companionManager.setSelectedCursorColor(color) }) {
+            ZStack {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(color.accentColor.opacity(0.16))
+                        .matchedGeometryEffect(id: "selectedCursorColor", in: cursorSelectionNamespace)
+                }
+
+                MinimalPinkCursorPointer()
+                    .fill(color.primaryColor)
+                    .frame(width: 18, height: 22)
+                    .shadow(color: color.primaryColor.opacity(isSelected ? 0.55 : 0.25), radius: isSelected ? 7 : 3, x: 0, y: 0)
+                    .overlay(
+                        MinimalPinkCursorPointer()
+                            .stroke(.white.opacity(isSelected ? 0.55 : 0.18), lineWidth: isSelected ? 1.1 : 0.7)
+                            .frame(width: 18, height: 22)
+                    )
+                    .rotationEffect(.degrees(-8))
+                    .scaleEffect(isSelected ? 1.08 : 0.92)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .trailing) {
+                if color != GlideCursorColor.allCases.last {
+                    Rectangle()
+                        .fill(.white.opacity(0.075))
+                        .frame(width: 1, height: 22)
+                }
+            }
+            .contentShape(Rectangle())
+            .accessibilityLabel("Select \(color.displayName) cursor")
+        }
+        .buttonStyle(.plain)
     }
 }
 
