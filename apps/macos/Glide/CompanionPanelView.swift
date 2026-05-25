@@ -78,6 +78,10 @@ final class AgentIntegrationsManager: ObservableObject {
     )
     @Published private(set) var errorMessage: String?
 
+    private static var cachedStates: [String: IntegrationState]?
+    private static var lastStatusRefresh: Date?
+    private static let minimumStatusRefreshInterval: TimeInterval = 60
+
     var connectedPlatforms: [Platform] {
         Self.platforms.filter { state(for: $0).isConnected }
     }
@@ -103,9 +107,9 @@ final class AgentIntegrationsManager: ObservableObject {
         states[platform.slug] ?? IntegrationState()
     }
 
-    func refreshStatuses() {
+    func refreshStatuses(force: Bool = false) {
         Task {
-            await loadStatuses()
+            await loadStatuses(force: force)
         }
     }
 
@@ -121,8 +125,17 @@ final class AgentIntegrationsManager: ObservableObject {
         }
     }
 
-    private func loadStatuses() async {
+    private func loadStatuses(force: Bool = false) async {
         guard !isLoading else { return }
+
+        if !force,
+           let cachedStates = Self.cachedStates,
+           let lastStatusRefresh = Self.lastStatusRefresh,
+           Date().timeIntervalSince(lastStatusRefresh) < Self.minimumStatusRefreshInterval {
+            states = cachedStates
+            return
+        }
+
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -139,6 +152,9 @@ final class AgentIntegrationsManager: ObservableObject {
                 errorMessage = error.localizedDescription
             }
         }
+
+        Self.cachedStates = states
+        Self.lastStatusRefresh = Date()
     }
 
     private func beginConnection(for platform: Platform) async {
@@ -167,7 +183,7 @@ final class AgentIntegrationsManager: ObservableObject {
             states[platform.slug] = IntegrationState(isConnected: false, statusText: "Waiting for \(platform.name)")
 
             try? await Task.sleep(nanoseconds: 1_500_000_000)
-            await loadStatuses()
+            await loadStatuses(force: true)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -371,9 +387,6 @@ struct CompanionPanelView: View {
         }
         .frame(width: 320)
         .background(panelBackground)
-        .onAppear {
-            agentIntegrationsManager.refreshStatuses()
-        }
     }
 
     
