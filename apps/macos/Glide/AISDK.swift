@@ -1,7 +1,7 @@
 import Foundation
 
 
-class ClaudeAPI {
+class AISDK {
     private static let tlsWarmupLock = NSLock()
     private static var hasStartedTLSWarmup = false
 
@@ -124,11 +124,8 @@ class ClaudeAPI {
         for image in images {
             contentBlocks.append([
                 "type": "image",
-                "source": [
-                    "type": "base64",
-                    "media_type": detectImageMediaType(for: image.data),
-                    "data": image.data.base64EncodedString()
-                ]
+                "image": image.data.base64EncodedString(),
+                "mediaType": detectImageMediaType(for: image.data)
             ])
             contentBlocks.append([
                 "type": "text",
@@ -143,8 +140,7 @@ class ClaudeAPI {
 
         let body: [String: Any] = [
             "model": model,
-            "max_tokens": 1024,
-            "stream": true,
+            "maxOutputTokens": 1024,
             "system": systemPrompt,
             "messages": messages
         ]
@@ -152,14 +148,14 @@ class ClaudeAPI {
         let bodyData = try JSONSerialization.data(withJSONObject: body)
         request.httpBody = bodyData
         let payloadMB = Double(bodyData.count) / 1_048_576.0
-        print("Claude streaming request: \(String(format: "%.1f", payloadMB))MB, \(images.count) image(s)")
+        print("AI SDK streaming request: \(String(format: "%.1f", payloadMB))MB, \(images.count) image(s)")
 
         
         let (byteStream, response) = try await session.bytes(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(
-                domain: "ClaudeAPI",
+                domain: "AISDK",
                 code: -1,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"]
             )
@@ -173,7 +169,7 @@ class ClaudeAPI {
             }
             let errorBody = errorBodyChunks.joined(separator: "\n")
             throw NSError(
-                domain: "ClaudeAPI",
+                domain: "AISDK",
                 code: httpResponse.statusCode,
                 userInfo: [NSLocalizedDescriptionKey: "API Error (\(httpResponse.statusCode)): \(errorBody)"]
             )
@@ -196,14 +192,30 @@ class ClaudeAPI {
                 continue
             }
 
-            
-            if eventType == "content_block_delta",
-               let delta = eventPayload["delta"] as? [String: Any],
-               let deltaType = delta["type"] as? String,
-               deltaType == "text_delta",
-               let textChunk = delta["text"] as? String {
+            var textChunk: String?
+
+            if eventType == "text-delta" {
+                textChunk = eventPayload["delta"] as? String
+            } else if eventType == "tool-input-available",
+                      let toolName = eventPayload["toolName"] as? String,
+                      toolName == "pointAt",
+                      let input = eventPayload["input"] as? [String: Any],
+                      let x = input["x"] as? NSNumber,
+                      let y = input["y"] as? NSNumber {
+                let labelText = (input["label"] as? String)?
+                    .replacingOccurrences(of: "]", with: " ")
+                    .replacingOccurrences(of: ":", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let label = (labelText?.isEmpty == false) ? ":\(labelText!)" : ""
+                let screen = (input["screen"] as? NSNumber).map { ":screen\($0.intValue)" } ?? ""
+                let description = ((input["description"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
+                    $0.isEmpty ? nil : " \($0) "
+                } ?? " "
+                textChunk = " [POINT:\(x.intValue),\(y.intValue)\(label)\(screen)]\(description)"
+            }
+
+            if let textChunk {
                 accumulatedResponseText += textChunk
-                
                 let currentAccumulatedText = accumulatedResponseText
                 await onTextChunk(currentAccumulatedText)
             }
@@ -236,11 +248,8 @@ class ClaudeAPI {
         for image in images {
             contentBlocks.append([
                 "type": "image",
-                "source": [
-                    "type": "base64",
-                    "media_type": detectImageMediaType(for: image.data),
-                    "data": image.data.base64EncodedString()
-                ]
+                "image": image.data.base64EncodedString(),
+                "mediaType": detectImageMediaType(for: image.data)
             ])
             contentBlocks.append([
                 "type": "text",
@@ -255,7 +264,7 @@ class ClaudeAPI {
 
         let body: [String: Any] = [
             "model": model,
-            "max_tokens": 256,
+            "maxOutputTokens": 256,
             "system": systemPrompt,
             "messages": messages
         ]
@@ -263,7 +272,7 @@ class ClaudeAPI {
         let bodyData = try JSONSerialization.data(withJSONObject: body)
         request.httpBody = bodyData
         let payloadMB = Double(bodyData.count) / 1_048_576.0
-        print("Claude request: \(String(format: "%.1f", payloadMB))MB, \(images.count) image(s)")
+        print("AI SDK request: \(String(format: "%.1f", payloadMB))MB, \(images.count) image(s)")
 
         let (data, response) = try await session.data(for: request)
 
@@ -271,7 +280,7 @@ class ClaudeAPI {
               (200...299).contains(httpResponse.statusCode) else {
             let responseString = String(data: data, encoding: .utf8) ?? "Unknown error"
             throw NSError(
-                domain: "ClaudeAPI",
+                domain: "AISDK",
                 code: (response as? HTTPURLResponse)?.statusCode ?? -1,
                 userInfo: [NSLocalizedDescriptionKey: "API Error: \(responseString)"]
             )
@@ -282,7 +291,7 @@ class ClaudeAPI {
               let textBlock = content.first(where: { ($0["type"] as? String) == "text" }),
               let text = textBlock["text"] as? String else {
             throw NSError(
-                domain: "ClaudeAPI",
+                domain: "AISDK",
                 code: -1,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid response format"]
             )

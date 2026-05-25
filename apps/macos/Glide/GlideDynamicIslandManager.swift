@@ -237,9 +237,9 @@ private struct GlideIslandRoot: View {
     }
 
     private var activeStateBars: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-            HStack(spacing: 3) {
-                ForEach(0..<3, id: \.self) { index in
+        TimelineView(.animation(minimumInterval: 1.0 / 36.0)) { timeline in
+            HStack(spacing: 2) {
+                ForEach(0..<5, id: \.self) { index in
                     Capsule()
                         .fill(
                             LinearGradient(
@@ -251,22 +251,31 @@ private struct GlideIslandRoot: View {
                         .frame(width: 2.5, height: animatedBarHeight(at: index, date: timeline.date))
                 }
             }
+            .animation(.linear(duration: 0.08), value: companionManager.currentAudioPowerLevel)
         }
     }
 
     private func animatedBarHeight(at index: Int, date: Date) -> CGFloat {
         let time = CGFloat(date.timeIntervalSinceReferenceDate)
-        let phase = time * 3.2 + CGFloat(index) * 0.8
-        let wave = (sin(phase) + 1) / 2
 
         switch companionManager.voiceState {
         case .listening:
-            let base: CGFloat = 4
-            let audioBoost = companionManager.currentAudioPowerLevel * 8
-            return base + wave * 6 + audioBoost
+            // Match the cursor waveform exactly: five bars with the same audio
+            // profile, easing, idle pulse, and update cadence.
+            let listeningBarProfile: [CGFloat] = [0.4, 0.7, 1.0, 0.7, 0.4]
+            let phase = time * 3.6 + CGFloat(index) * 0.35
+            let normalizedAudioPowerLevel = max(companionManager.currentAudioPowerLevel - 0.008, 0)
+            let easedAudioPowerLevel = pow(min(normalizedAudioPowerLevel * 2.85, 1), 0.76)
+            let reactiveHeight = easedAudioPowerLevel * 10 * listeningBarProfile[index]
+            let idlePulse = (sin(phase) + 1) / 2 * 1.5
+            return 3 + reactiveHeight + idlePulse
         case .processing:
+            let phase = time * 3.2 + CGFloat(index) * 0.8
+            let wave = (sin(phase) + 1) / 2
             return 3 + wave * 8
         case .responding:
+            let phase = time * 3.2 + CGFloat(index) * 0.8
+            let wave = (sin(phase) + 1) / 2
             return 4 + wave * 5
         case .idle:
             return 3

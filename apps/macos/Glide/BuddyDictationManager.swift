@@ -421,9 +421,6 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         shouldAutomaticallySubmitFinalDraft = shouldAutomaticallySubmitFinalDraftOnStop
         hasFinishedCurrentDictationSession = false
         isFinalizingTranscript = false
-        isRecordingFromMicrophoneButton = startSource == .microphoneButton
-        isRecordingFromKeyboardShortcut = startSource == .keyboardShortcut
-        isKeyboardShortcutSessionActiveOrFinalizing = startSource == .keyboardShortcut
         currentAudioPowerLevel = 0
         recordedAudioPowerHistory = Array(
             repeating: Self.recordedAudioPowerHistoryBaselineLevel,
@@ -448,10 +445,13 @@ final class BuddyDictationManager: NSObject, ObservableObject {
                 resetSessionState()
                 return
             }
+            isPreparingToRecord = false
+            isRecordingFromMicrophoneButton = startSource == .microphoneButton
+            isRecordingFromKeyboardShortcut = startSource == .keyboardShortcut
+            isKeyboardShortcutSessionActiveOrFinalizing = startSource == .keyboardShortcut
             if startSource == .microphoneButton {
                 microphoneButtonRecordingStartedAt = Date()
             }
-            isPreparingToRecord = false
             print("🎙️ BuddyDictationManager: recognition session started")
         } catch {
             isPreparingToRecord = false
@@ -506,37 +506,10 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         activeTranscriptionSession?.cancel()
         activeTranscriptionSession = nil
 
-        print("🎙️ BuddyDictationManager: opening transcription provider \(transcriptionProvider.displayName)")
-
-        let activeTranscriptionSession = try await transcriptionProvider.startStreamingSession(
-            keyterms: buildTranscriptionKeyterms(),
-            onTranscriptUpdate: { [weak self] transcriptText in
-                Task { @MainActor in
-                    self?.latestRecognizedText = transcriptText
-                }
-            },
-            onFinalTranscriptReady: { [weak self] transcriptText in
-                Task { @MainActor in
-                    guard let self else { return }
-                    self.latestRecognizedText = transcriptText
-
-                    if self.isFinalizingTranscript {
-                        self.finishCurrentDictationSessionIfNeeded(
-                            shouldSubmitFinalDraft: self.shouldAutomaticallySubmitFinalDraft
-                        )
-                    }
-                }
-            },
-            onError: { [weak self] error in
-                Task { @MainActor in
-                    self?.handleRecognitionError(error)
-                }
-            }
-        )
-
-        self.activeTranscriptionSession = activeTranscriptionSession
-        print("🎙️ BuddyDictationManager: provider ready, starting audio engine")
-
+        // Start CoreAudio immediately so the microphone and live waveform react
+        // as soon as the push-to-talk shortcut is pressed. The streaming
+        // provider can take a moment to open its socket; don't block mic capture
+        // or UI feedback on that network handshake.
         let inputNode = audioEngine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
@@ -548,6 +521,50 @@ final class BuddyDictationManager: NSObject, ObservableObject {
 
         audioEngine.prepare()
         try audioEngine.start()
+
+        print("🎙️ BuddyDictationManager: audio engine started, opening transcription provider \(transcriptionProvider.displayName)")
+
+        do {
+            let activeTranscriptionSession = try await transcriptionProvider.startStreamingSession(
+                keyterms: buildTranscriptionKeyterms(),
+                onTranscriptUpdate: { [weak self] transcriptText in
+                    Task { @MainActor in
+                        self?.latestRecognizedText = transcriptText
+                    }
+                },
+                onFinalTranscriptReady: { [weak self] transcriptText in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.latestRecognizedText = transcriptText
+
+                        if self.isFinalizingTranscript {
+                            self.finishCurrentDictationSessionIfNeeded(
+                                shouldSubmitFinalDraft: self.shouldAutomaticallySubmitFinalDraft
+                            )
+                        }
+                    }
+                },
+                onError: { [weak self] error in
+                    Task { @MainActor in
+                        self?.handleRecognitionError(error)
+                    }
+                }
+            )
+
+            if Task.isCancelled {
+                activeTranscriptionSession.cancel()
+                audioEngine.stop()
+                audioEngine.inputNode.removeTap(onBus: 0)
+                throw CancellationError()
+            }
+
+            self.activeTranscriptionSession = activeTranscriptionSession
+            print("🎙️ BuddyDictationManager: provider ready")
+        } catch {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+            throw error
+        }
     }
 
     private func handleRecognitionError(_ error: Error) {
@@ -645,8 +662,6 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             "makesomething",
             "Learning Buddy",
             "Codex",
-            "Claude",
-            "Anthropic",
             "SwiftUI",
             "Xcode",
             "Vercel",

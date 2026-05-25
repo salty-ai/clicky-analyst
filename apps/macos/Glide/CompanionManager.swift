@@ -50,8 +50,8 @@ final class CompanionManager: ObservableObject {
     
     private static let workerBaseURL = AppBundleConfiguration.serverBaseURL
 
-    private lazy var claudeAPI: ClaudeAPI = {
-        return ClaudeAPI(proxyURL: "\(Self.workerBaseURL)/chat", model: selectedModel)
+    private lazy var aiSDK: AISDK = {
+        return AISDK(proxyURL: "\(Self.workerBaseURL)/chat", model: selectedModel)
     }()
 
     private lazy var elevenLabsTTSClient: ElevenLabsTTSClient = {
@@ -86,12 +86,12 @@ final class CompanionManager: ObservableObject {
     @Published private(set) var isOverlayVisible: Bool = false
 
     
-    @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedClaudeModel") ?? "claude-sonnet-4-6"
+    @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedAIModel") ?? "openai/gpt-5.4-mini"
 
     func setSelectedModel(_ model: String) {
         selectedModel = model
-        UserDefaults.standard.set(model, forKey: "selectedClaudeModel")
-        claudeAPI.model = model
+        UserDefaults.standard.set(model, forKey: "selectedAIModel")
+        aiSDK.model = model
     }
 
     
@@ -159,7 +159,7 @@ final class CompanionManager: ObservableObject {
         bindShortcutTransitions()
         
         
-        _ = claudeAPI
+        _ = aiSDK
 
         
         
@@ -447,9 +447,10 @@ final class CompanionManager: ObservableObject {
                 isOverlayVisible = true
             }
 
-            // Show the Listening state immediately on key-down instead of
-            // waiting for the async audio engine startup to publish recording.
-            voiceState = .listening
+            // Show Thinking while the transcription token / websocket is being
+            // prepared. The listening waveform should only appear once the
+            // transcription session is actually active.
+            voiceState = .processing
 
             
             NotificationCenter.default.post(name: .GlideDismissPanel, object: nil)
@@ -484,7 +485,7 @@ final class CompanionManager: ObservableObject {
                         self?.lastTranscript = finalTranscript
                         print("Companion received transcript: \(finalTranscript)")
                         GlideAnalytics.trackUserMessageSent(transcript: finalTranscript)
-                        self?.sendTranscriptToClaudeWithScreenshot(transcript: finalTranscript)
+                        self?.sendTranscriptToAISDKWithScreenshot(transcript: finalTranscript)
                     }
                 )
             }
@@ -554,7 +555,7 @@ final class CompanionManager: ObservableObject {
     
     
     
-    private func sendTranscriptToClaudeWithScreenshot(transcript: String) {
+    private func sendTranscriptToAISDKWithScreenshot(transcript: String) {
         currentResponseTask?.cancel()
         elevenLabsTTSClient.stopPlayback()
 
@@ -581,7 +582,7 @@ final class CompanionManager: ObservableObject {
                     (userPlaceholder: entry.userTranscript, assistantResponse: entry.assistantResponse)
                 }
 
-                let (fullResponseText, _) = try await claudeAPI.analyzeImageStreaming(
+                let (fullResponseText, _) = try await aiSDK.analyzeImageStreaming(
                     images: labeledImages,
                     systemPrompt: Self.companionVoiceResponseSystemPrompt,
                     conversationHistory: historyForAPI,
@@ -624,11 +625,20 @@ final class CompanionManager: ObservableObject {
                             if let pointCoordinate = step.point.coordinate {
                                 print("Element pointing: (\(Int(pointCoordinate.x)), \(Int(pointCoordinate.y))) → \"\(step.point.elementLabel ?? "element")\"")
                             }
-                            try await Task.sleep(nanoseconds: 350_000_000)
-                            if !step.speech.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            let trimmedSpeech = step.speech.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                            // Give the overlay enough time to actually fly to and dwell on this
+                            // target before the next POINT tag updates detectedElementScreenLocation.
+                            // AI SDK responses often put several point tags at the end with little or
+                            // no text between them; without this minimum dwell, the published location
+                            // is overwritten rapidly and the cursor only visibly points at the last one.
+                            try await Task.sleep(nanoseconds: trimmedSpeech.isEmpty ? 2_200_000_000 : 900_000_000)
+
+                            if !trimmedSpeech.isEmpty {
                                 voiceState = .responding
-                                try await speakAndWait(step.speech)
+                                try await speakAndWait(trimmedSpeech)
                                 voiceState = .idle
+                                try await Task.sleep(nanoseconds: 350_000_000)
                             }
                         }
                     }
@@ -774,6 +784,7 @@ final class CompanionManager: ObservableObject {
         }()
 
         var steps: [PointingSpeechStep] = []
+        var seenPointKeys = Set<String>()
         for (index, match) in matches.enumerated() {
             guard let tagRange = Range(match.range, in: responseText) else { continue }
             let nextStart = index + 1 < matches.count
@@ -783,7 +794,19 @@ final class CompanionManager: ObservableObject {
 
             let tag = String(responseText[tagRange])
             let point = parsePointingCoordinates(from: tag)
-            guard point.coordinate != nil else { continue }
+            guard let coordinate = point.coordinate else { continue }
+
+            // Some models repeat the exact same navigation plan after completing it
+            // (especially after tool/tag conversion). Keep the first occurrence so
+            // join → share → download doesn't replay as join → share → download again.
+            let pointKey = [
+                String(Int(coordinate.x.rounded())),
+                String(Int(coordinate.y.rounded())),
+                point.elementLabel?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                point.screenNumber.map(String.init) ?? ""
+            ].joined(separator: ":")
+            guard !seenPointKeys.contains(pointKey) else { continue }
+            seenPointKeys.insert(pointKey)
 
             var speech = String(responseText[tagRange.upperBound..<segmentEnd])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -900,7 +923,7 @@ final class CompanionManager: ObservableObject {
                 let dimensionInfo = " (image dimensions: \(cursorScreenCapture.screenshotWidthInPixels)x\(cursorScreenCapture.screenshotHeightInPixels) pixels)"
                 let labeledImages = [(data: cursorScreenCapture.imageData, label: cursorScreenCapture.label + dimensionInfo)]
 
-                let (fullResponseText, _) = try await claudeAPI.analyzeImageStreaming(
+                let (fullResponseText, _) = try await aiSDK.analyzeImageStreaming(
                     images: labeledImages,
                     systemPrompt: Self.onboardingDemoSystemPrompt,
                     userPrompt: "look around my screen and find something interesting to point at",

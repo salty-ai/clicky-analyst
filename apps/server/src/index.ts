@@ -1,8 +1,7 @@
 import { clerkMiddleware, getAuth } from "@clerk/hono";
-import { createGateway, stepCountIs, streamText, tool, type AssistantContent, type ModelMessage, type UserContent } from "ai";
+import { createGateway, streamText, type AssistantContent, type ModelMessage, type UserContent } from "ai";
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
-import { z } from "zod";
 
 
 interface Env {
@@ -13,28 +12,24 @@ interface Env {
   CLERK_PUBLISHABLE_KEY?: string;
 }
 
-type AnthropicMessage = {
+type ChatMessage = {
   role: "user" | "assistant";
-  content: string | AnthropicContentBlock[];
+  content: string | ChatContentBlock[];
 };
 
-type AnthropicContentBlock =
+type ChatContentBlock =
   | { type: "text"; text: string }
   | {
       type: "image";
-      source: {
-        type: "base64";
-        media_type: string;
-        data: string;
-      };
+      image: string;
+      mediaType: string;
     };
 
-type AnthropicRequestBody = {
+type ChatRequestBody = {
   model?: string;
-  max_tokens?: number;
-  stream?: boolean;
+  maxOutputTokens?: number;
   system?: string;
-  messages?: AnthropicMessage[];
+  messages?: ChatMessage[];
 };
 
 const app = new Hono<{ Bindings: Env }>();
@@ -76,28 +71,20 @@ function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
 }
 
 async function handleChat(request: Request, env: Env): Promise<Response> {
-  const anthropicRequestBody = (await request.json()) as AnthropicRequestBody;
+  const chatRequestBody = (await request.json()) as ChatRequestBody;
   const gateway = createGateway({ apiKey: env.AI_GATEWAY_API_KEY });
-  const model = gateway(toGatewayModelId(anthropicRequestBody.model));
-  const messages = toModelMessages(anthropicRequestBody.messages ?? []);
-  const maxOutputTokens = anthropicRequestBody.max_tokens;
+  const model = gateway(toGatewayModelId(chatRequestBody.model));
+  const messages = toModelMessages(chatRequestBody.messages ?? []);
+  const maxOutputTokens = chatRequestBody.maxOutputTokens;
 
   const result = streamText({
     model,
-    system: withPointerToolInstructions(anthropicRequestBody.system),
+    system: withPointerToolInstructions(chatRequestBody.system),
     messages,
     maxOutputTokens,
-    tools: pointerTools,
-    stopWhen: stepCountIs(8),
   });
 
-  return new Response(toAnthropicSSEStream(result.fullStream), {
-    status: 200,
-    headers: {
-      "content-type": "text/event-stream",
-      "cache-control": "no-cache",
-    },
-  });
+  return result.toUIMessageStreamResponse();
 }
 
 function toGatewayModelId(model: string | undefined): string {
@@ -109,26 +96,26 @@ function toGatewayModelId(model: string | undefined): string {
     return model;
   }
 
-  return `anthropic/${model.replaceAll("-4-", "-4.").replaceAll("-3-", "-3.")}`;
+  return model;
 }
 
-function toModelMessages(anthropicMessages: AnthropicMessage[]): ModelMessage[] {
-  return anthropicMessages.map((anthropicMessage): ModelMessage => {
-    if (anthropicMessage.role === "user") {
+function toModelMessages(chatMessages: ChatMessage[]): ModelMessage[] {
+  return chatMessages.map((chatMessage): ModelMessage => {
+    if (chatMessage.role === "user") {
       return {
         role: "user",
-        content: toUserMessageContent(anthropicMessage.content),
+        content: toUserMessageContent(chatMessage.content),
       };
     }
 
     return {
       role: "assistant",
-      content: toAssistantMessageContent(anthropicMessage.content),
+      content: toAssistantMessageContent(chatMessage.content),
     };
   });
 }
 
-function toUserMessageContent(content: string | AnthropicContentBlock[]): UserContent {
+function toUserMessageContent(content: string | ChatContentBlock[]): UserContent {
   if (typeof content === "string") {
     return content;
   }
@@ -140,13 +127,13 @@ function toUserMessageContent(content: string | AnthropicContentBlock[]): UserCo
 
     return {
       type: "image",
-      image: contentBlock.source.data,
-      mediaType: contentBlock.source.media_type,
+      image: contentBlock.image,
+      mediaType: contentBlock.mediaType,
     };
   });
 }
 
-function toAssistantMessageContent(content: string | AnthropicContentBlock[]): AssistantContent {
+function toAssistantMessageContent(content: string | ChatContentBlock[]): AssistantContent {
   if (typeof content === "string") {
     return content;
   }
@@ -156,76 +143,20 @@ function toAssistantMessageContent(content: string | AnthropicContentBlock[]): A
     .map((contentBlock) => ({ type: "text", text: contentBlock.text }));
 }
 
-const pointerTools = {
-  pointAt: tool({
-    description:
-      "Point Piksy's cursor at one visible UI element. Call once per element, in the order the user should look at them.",
-    inputSchema: z.object({
-      x: z.number().int().describe("X coordinate in screenshot pixels from the image's left edge."),
-      y: z.number().int().describe("Y coordinate in screenshot pixels from the image's top edge."),
-      label: z.string().describe("Short 1-3 word description to show by the cursor."),
-      description: z.string().describe("One short sentence to speak with TTS while the cursor points here."),
-      screen: z.number().int().optional().describe("Screen number from the image label when pointing at a non-cursor screen."),
-    }),
-    execute: async ({ label, description }) => ({ ok: true, pointedAt: label, spokenDescription: description }),
-  }),
-};
-
 function withPointerToolInstructions(system: string | undefined): string | undefined {
   const instructions = `
 
-pointer tool:
-- Use the pointAt tool instead of writing [POINT:...] tags yourself.
-- For navigation help, call pointAt once for EACH separate UI target.
-- Put the short spoken instruction for that target in the tool's description field. That description is used for TTS while the cursor points there.
-- If the user asks for multiple things, you MUST call pointAt multiple times in sequence. Example for "change font and font size": call pointAt for "font" with a description about changing font, then call pointAt for "font size" with a description about changing size.
-- Do not combine two targets into one tool call. Do not stop after the first target when the user asked for more than one.
-- After tool calls, you may add a final short response or summary. It will also be spoken with TTS.
-- The tool input coordinates must use the screenshot pixel coordinate space: origin top-left, x rightward, y downward.
-- Keep label short because it appears next to the cursor.`;
+pointing tags:
+- When pointing would help, write [POINT:x,y:label] directly in your response at the exact moment the cursor should point there.
+- For navigation help, include one [POINT:...] tag for EACH separate UI target, in the order the user should look at them.
+- Put the short spoken instruction for each target immediately after that target's tag. Example: [POINT:120,40:font] choose the font here. [POINT:220,40:size] then change the size here.
+- Do not combine two targets into one tag. Do not stop after the first target when the user asked for more than one.
+- If the element is on a different screen, append :screenN, like [POINT:400,300:terminal:screen2].
+- If pointing would not help, do not include a point tag.
+- Coordinates must use the screenshot pixel coordinate space: origin top-left, x rightward, y downward.
+- Keep labels short because they appear next to the cursor.`;
 
   return system ? `${system}${instructions}` : instructions.trim();
-}
-
-function toAnthropicSSEStream(fullStream: AsyncIterable<any>): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-
-  const enqueueText = (controller: ReadableStreamDefaultController<Uint8Array>, text: string) => {
-    controller.enqueue(
-      encoder.encode(
-        `data: ${JSON.stringify({
-          type: "content_block_delta",
-          delta: { type: "text_delta", text },
-        })}\n\n`
-      )
-    );
-  };
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const part of fullStream) {
-          if (part.type === "text-delta") {
-            enqueueText(controller, part.text);
-          }
-
-          if (part.type === "tool-call" && part.toolName === "pointAt") {
-            const input = part.input as { x: number; y: number; label?: string; description?: string; screen?: number };
-            const label = input.label ? `:${input.label.replace(/[\]:]/g, " ").trim()}` : "";
-            const screen = input.screen ? `:screen${input.screen}` : "";
-            const description = input.description?.trim() ? ` ${input.description.trim()} ` : " ";
-            enqueueText(controller, ` [POINT:${Math.round(input.x)},${Math.round(input.y)}${label}${screen}]${description}`);
-          }
-        }
-
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      } catch (error) {
-        console.error("[/chat] AI Gateway stream error:", error);
-        controller.error(error);
-      }
-    },
-  });
 }
 
 async function handleTranscribeToken(env: Env): Promise<Response> {
