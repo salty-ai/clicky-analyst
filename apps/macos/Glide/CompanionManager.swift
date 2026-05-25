@@ -8,6 +8,7 @@ enum CompanionVoiceState {
     case idle
     case listening
     case processing
+    case agentWorking
     case responding
 }
 
@@ -635,6 +636,10 @@ final class CompanionManager: ObservableObject {
                     userPrompt: transcript,
                     onTextChunk: { _ in
                         
+                    },
+                    onToolActivity: { [weak self] _, isRunning in
+                        guard let self else { return }
+                        self.voiceState = isRunning ? .agentWorking : .processing
                     }
                 )
 

@@ -1,8 +1,160 @@
 import AVFoundation
+import AppKit
+import Combine
 import SwiftUI
+
+@MainActor
+final class AgentIntegrationsManager: ObservableObject {
+    @Published private(set) var isLoading = false
+    @Published private(set) var isConnecting = false
+    @Published private(set) var isDisconnecting = false
+    @Published private(set) var isNotionConnected = false
+    @Published private(set) var notionStatusText = "Not connected"
+    @Published private(set) var errorMessage: String?
+
+    private struct NotionStatusResponse: Decodable {
+        let configured: Bool?
+        let connected: Bool
+        let status: String?
+    }
+
+    private struct NotionConnectResponse: Decodable {
+        let redirectUrl: String
+    }
+
+    func refreshNotionStatus() {
+        Task {
+            await loadNotionStatus()
+        }
+    }
+
+    func connectNotion() {
+        Task {
+            await beginNotionConnection()
+        }
+    }
+
+    func disconnectNotion() {
+        Task {
+            await disconnectNotionConnection()
+        }
+    }
+
+    private func loadNotionStatus() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            let request = try await makeAuthorizedRequest(path: "/integrations/notion/status", method: "GET")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try validate(response: response, data: data)
+            let status = try JSONDecoder().decode(NotionStatusResponse.self, from: data)
+
+            if status.configured == false {
+                isNotionConnected = false
+                notionStatusText = "Server not configured"
+            } else if status.connected {
+                isNotionConnected = true
+                notionStatusText = "Connected"
+            } else {
+                isNotionConnected = false
+                notionStatusText = status.status ?? "Not connected"
+            }
+        } catch {
+            isNotionConnected = false
+            notionStatusText = "Unavailable"
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func beginNotionConnection() async {
+        guard !isConnecting else { return }
+        isConnecting = true
+        errorMessage = nil
+        defer { isConnecting = false }
+
+        do {
+            let request = try await makeAuthorizedRequest(path: "/integrations/notion/connect", method: "POST")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try validate(response: response, data: data)
+            let connectResponse = try JSONDecoder().decode(NotionConnectResponse.self, from: data)
+
+            guard let redirectURL = URL(string: connectResponse.redirectUrl) else {
+                throw NSError(domain: "AgentIntegrations", code: -1, userInfo: [
+                    NSLocalizedDescriptionKey: "Invalid Notion connection URL."
+                ])
+            }
+
+            NSWorkspace.shared.open(redirectURL)
+            notionStatusText = "Waiting for Notion"
+
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await loadNotionStatus()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func disconnectNotionConnection() async {
+        guard !isDisconnecting else { return }
+        isDisconnecting = true
+        errorMessage = nil
+        defer { isDisconnecting = false }
+
+        do {
+            let request = try await makeAuthorizedRequest(path: "/integrations/notion/disconnect", method: "DELETE")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try validate(response: response, data: data)
+            isNotionConnected = false
+            notionStatusText = "Not connected"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func makeAuthorizedRequest(path: String, method: String) async throws -> URLRequest {
+        guard let url = URL(string: "\(AppBundleConfiguration.serverBaseURL)\(path)") else {
+            throw NSError(domain: "AgentIntegrations", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid server URL."
+            ])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let sessionToken = await GlideAuthManager.shared.sessionToken() {
+            request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    private func validate(response: URLResponse, data: Data) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "AgentIntegrations", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid server response."
+            ])
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "AgentIntegrations", code: httpResponse.statusCode, userInfo: [
+                NSLocalizedDescriptionKey: body
+            ])
+        }
+    }
+}
+
+private enum CompanionPanelTab {
+    case home
+    case agents
+}
 
 struct CompanionPanelView: View {
     @ObservedObject var companionManager: CompanionManager
+    @StateObject private var agentIntegrationsManager = AgentIntegrationsManager()
+    @State private var selectedTab: CompanionPanelTab = .home
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -11,24 +163,14 @@ struct CompanionPanelView: View {
                 .background(DS.Colors.borderSubtle)
                 .padding(.horizontal, 16)
 
-            permissionsCopySection
-                .padding(.top, 16)
+            tabPicker
+                .padding(.top, 12)
                 .padding(.horizontal, 16)
 
-            if !companionManager.allPermissionsGranted {
-                Spacer()
-                    .frame(height: 16)
-
-                settingsSection
-                    .padding(.horizontal, 16)
-            }
-
-            if !companionManager.hasCompletedOnboarding && companionManager.allPermissionsGranted {
-                Spacer()
-                    .frame(height: 16)
-
-                startButton
-                    .padding(.horizontal, 16)
+            if selectedTab == .home {
+                homeTabContent
+            } else {
+                agentsTabContent
             }
 
             
@@ -53,6 +195,9 @@ struct CompanionPanelView: View {
         }
         .frame(width: 320)
         .background(panelBackground)
+        .onAppear {
+            agentIntegrationsManager.refreshNotionStatus()
+        }
     }
 
     
@@ -86,6 +231,149 @@ struct CompanionPanelView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+    }
+
+    private var tabPicker: some View {
+        HStack(spacing: 0) {
+            panelTabButton(title: "Home", iconName: "sparkles", tab: .home)
+            panelTabButton(title: "Agents", iconName: "app.connected.to.app.below.fill", tab: .agents)
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(DS.Colors.borderSubtle, lineWidth: 0.5)
+        )
+    }
+
+    private func panelTabButton(title: String, iconName: String, tab: CompanionPanelTab) -> some View {
+        let isSelected = selectedTab == tab
+        return Button(action: {
+            selectedTab = tab
+            if tab == .agents {
+                agentIntegrationsManager.refreshNotionStatus()
+            }
+        }) {
+            HStack(spacing: 5) {
+                Image(systemName: iconName)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(isSelected ? DS.Colors.textPrimary : DS.Colors.textTertiary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+    }
+
+    private var homeTabContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            permissionsCopySection
+                .padding(.top, 16)
+                .padding(.horizontal, 16)
+
+            if !companionManager.allPermissionsGranted {
+                Spacer()
+                    .frame(height: 16)
+
+                settingsSection
+                    .padding(.horizontal, 16)
+            }
+
+            if !companionManager.hasCompletedOnboarding && companionManager.allPermissionsGranted {
+                Spacer()
+                    .frame(height: 16)
+
+                startButton
+                    .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    private var agentsTabContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("AGENTS")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(DS.Colors.textTertiary)
+                .padding(.top, 16)
+
+            notionIntegrationRow
+
+            if let errorMessage = agentIntegrationsManager.errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 10))
+                    .foregroundColor(DS.Colors.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var notionIntegrationRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(agentIntegrationsManager.isNotionConnected ? DS.Colors.success : DS.Colors.textTertiary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Notion")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(DS.Colors.textSecondary)
+
+                Text(agentIntegrationsManager.notionStatusText)
+                    .font(.system(size: 10))
+                    .foregroundColor(DS.Colors.textTertiary)
+            }
+
+            Spacer()
+
+            if agentIntegrationsManager.isNotionConnected {
+                Button(action: {
+                    agentIntegrationsManager.disconnectNotion()
+                }) {
+                    Text(agentIntegrationsManager.isDisconnecting ? "Removing" : "Disconnect")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(DS.Colors.warning)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(Color.red.opacity(0.12))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading)
+                .pointerCursor()
+            } else {
+                Button(action: {
+                    agentIntegrationsManager.connectNotion()
+                }) {
+                    Text(agentIntegrationsManager.isConnecting ? "Opening" : "Connect")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(DS.Colors.textOnAccent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(DS.Colors.accent)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading)
+                .pointerCursor()
+            }
+        }
+        .padding(.vertical, 8)
     }
 
     
@@ -620,7 +908,7 @@ struct CompanionPanelView: View {
             return DS.Colors.success
         case .listening:
             return DS.Colors.accentText
-        case .processing, .responding:
+        case .processing, .agentWorking, .responding:
             return DS.Colors.accentText
         }
     }
@@ -639,6 +927,8 @@ struct CompanionPanelView: View {
             return "Listening"
         case .processing:
             return "Processing"
+        case .agentWorking:
+            return "Agent working"
         case .responding:
             return "Responding"
         }

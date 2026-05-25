@@ -104,7 +104,8 @@ class AISDK {
         systemPrompt: String,
         conversationHistory: [(userPlaceholder: String, assistantResponse: String)] = [],
         userPrompt: String,
-        onTextChunk: @MainActor @Sendable (String) -> Void
+        onTextChunk: @MainActor @Sendable (String) -> Void,
+        onToolActivity: (@MainActor @Sendable (_ toolName: String, _ isRunning: Bool) -> Void)? = nil
     ) async throws -> (text: String, duration: TimeInterval) {
         let startTime = Date()
 
@@ -212,6 +213,12 @@ class AISDK {
                     $0.isEmpty ? nil : " \($0) "
                 } ?? " "
                 textChunk = " [POINT:\(x.intValue),\(y.intValue)\(label)\(screen)]\(description)"
+            } else if eventType == "tool-input-available",
+                      let toolName = eventPayload["toolName"] as? String {
+                await onToolActivity?(toolName, true)
+            } else if eventType == "tool-output-available",
+                      let toolName = eventPayload["toolName"] as? String {
+                await onToolActivity?(toolName, false)
             }
 
             if let textChunk {

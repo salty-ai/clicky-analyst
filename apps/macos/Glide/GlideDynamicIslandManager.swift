@@ -132,6 +132,7 @@ final class GlideDynamicIslandManager {
 
 private enum GlideSettingsRoute: Equatable {
     case main
+    case agents
     case shortcut
     case microphone
 }
@@ -139,6 +140,7 @@ private enum GlideSettingsRoute: Equatable {
 private struct GlideIslandRoot: View {
     @ObservedObject var companionManager: CompanionManager
     @ObservedObject private var authManager = GlideAuthManager.shared
+    @StateObject private var agentIntegrationsManager = AgentIntegrationsManager()
     @State private var isOpen = false
     @State private var isShowingSettings = false
     @State private var selectedShortcut = BuddyPushToTalkShortcut.currentShortcutOption
@@ -151,14 +153,26 @@ private struct GlideIslandRoot: View {
     // The clear hover target remains wider/taller so moving over the physical
     // notch expands the island into the full controls.
     private static let collapsedNotchWidth: CGFloat = 142
+    private static let activeNotchWidth: CGFloat = 360
     private static let expandedNotchWidth: CGFloat = 440
     private static let collapsedNotchHeight: CGFloat = 24
+    private static let activeNotchHeight: CGFloat = 38
     private static let containerHeight: CGFloat = 310
     private static let hoverActivationWidth: CGFloat = 220
     private static let hoverActivationHeight: CGFloat = 32
 
     private var isActive: Bool {
         companionManager.voiceState != .idle
+    }
+
+    private var currentNotchWidth: CGFloat {
+        if isOpen { return Self.expandedNotchWidth }
+        return isActive ? Self.activeNotchWidth : Self.collapsedNotchWidth
+    }
+
+    private var currentNotchBottomRadius: CGFloat {
+        if isOpen { return 22 }
+        return isActive ? 17 : 10
     }
 
     var body: some View {
@@ -179,9 +193,9 @@ private struct GlideIslandRoot: View {
                         collapsedBar
                     }
                 }
-                .frame(width: isOpen ? Self.expandedNotchWidth : Self.collapsedNotchWidth)
+                .frame(width: currentNotchWidth)
                 .background(.black)
-                .clipShape(GlideNotchShape(topRadius: isOpen ? 8 : 6, bottomRadius: isOpen ? 22 : 10))
+                .clipShape(GlideNotchShape(topRadius: isOpen ? 8 : 6, bottomRadius: currentNotchBottomRadius))
             }
             .onHover { hovering in
                 hoverCloseTask?.cancel()
@@ -235,30 +249,32 @@ private struct GlideIslandRoot: View {
             HStack(spacing: 0) {
                 if isActive {
                     Text(stateLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.82))
                         .lineLimit(1)
                         .transition(.opacity.combined(with: .move(edge: .leading)))
 
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 24)
 
                     activeStateBars
+                        .frame(width: 76, alignment: .trailing)
                         .transition(.opacity.combined(with: .scale))
                 } else {
                     Spacer(minLength: 0)
                 }
             }
-            .padding(.horizontal, isActive ? 12 : 0)
+            .padding(.leading, isActive ? 18 : 0)
+            .padding(.trailing, isActive ? 18 : 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: isActive ? 30 : Self.collapsedNotchHeight)
+        .frame(height: isActive ? Self.activeNotchHeight : Self.collapsedNotchHeight)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: companionManager.voiceState)
     }
 
     private var activeStateBars: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 36.0)) { timeline in
-            HStack(spacing: 2) {
-                ForEach(0..<5, id: \.self) { index in
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<9, id: \.self) { index in
                     Capsule()
                         .fill(
                             LinearGradient(
@@ -267,7 +283,7 @@ private struct GlideIslandRoot: View {
                                 endPoint: .top
                             )
                         )
-                        .frame(width: 2.5, height: animatedBarHeight(at: index, date: timeline.date))
+                        .frame(width: 3, height: animatedBarHeight(at: index, date: timeline.date))
                 }
             }
             .animation(.linear(duration: 0.08), value: companionManager.currentAudioPowerLevel)
@@ -281,7 +297,7 @@ private struct GlideIslandRoot: View {
         case .listening:
             // Match the cursor waveform exactly: five bars with the same audio
             // profile, easing, idle pulse, and update cadence.
-            let listeningBarProfile: [CGFloat] = [0.4, 0.7, 1.0, 0.7, 0.4]
+            let listeningBarProfile: [CGFloat] = [0.3, 0.48, 0.72, 0.95, 1.0, 0.95, 0.72, 0.48, 0.3]
             let phase = time * 3.6 + CGFloat(index) * 0.35
             let normalizedAudioPowerLevel = max(companionManager.currentAudioPowerLevel - 0.008, 0)
             let easedAudioPowerLevel = pow(min(normalizedAudioPowerLevel * 2.85, 1), 0.76)
@@ -292,6 +308,10 @@ private struct GlideIslandRoot: View {
             let phase = time * 3.2 + CGFloat(index) * 0.8
             let wave = (sin(phase) + 1) / 2
             return 3 + wave * 8
+        case .agentWorking:
+            let phase = time * 4.1 + CGFloat(index) * 0.55
+            let wave = (sin(phase) + 1) / 2
+            return 4 + wave * 9
         case .responding:
             let phase = time * 3.2 + CGFloat(index) * 0.8
             let wave = (sin(phase) + 1) / 2
@@ -365,6 +385,11 @@ private struct GlideIslandRoot: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color(hex: "#A78BFA"))
                 .symbolEffect(.pulse, isActive: true)
+        case .agentWorking:
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color(hex: "#F472B6"))
+                .symbolEffect(.pulse, isActive: true)
         case .responding:
             Image(systemName: "speaker.wave.2")
                 .font(.system(size: 11, weight: .medium))
@@ -378,7 +403,7 @@ private struct GlideIslandRoot: View {
         case .idle: "Idle"
         case .listening: "Listening"
         case .processing: "Thinking"
-        case .responding: "Speaking"
+        case .agentWorking: "Agents are working"        case .responding: "Speaking"
         }
     }
 
@@ -387,6 +412,7 @@ private struct GlideIslandRoot: View {
         case .idle: .white.opacity(0.3)
         case .listening: Color(hex: "#4ADE80")
         case .processing: Color(hex: "#A78BFA")
+        case .agentWorking: Color(hex: "#F472B6")
         case .responding: Color(hex: "#60A5FA")
         }
     }
@@ -396,6 +422,7 @@ private struct GlideIslandRoot: View {
         case .idle: [.white.opacity(0.1), .white.opacity(0.2)]
         case .listening: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")]
         case .processing: [Color(hex: "#7C3AED"), Color(hex: "#A78BFA")]
+        case .agentWorking: [Color(hex: "#DB2777"), Color(hex: "#F472B6")]
         case .responding: [Color(hex: "#3B82F6"), Color(hex: "#60A5FA")]
         }
     }
@@ -539,6 +566,8 @@ private struct GlideIslandRoot: View {
                     switch settingsRoute {
                     case .main:
                         settingsMainView
+                    case .agents:
+                        agentsSettingsView
                     case .shortcut:
                         shortcutSettingsView
                     case .microphone:
@@ -560,6 +589,7 @@ private struct GlideIslandRoot: View {
     private var settingsTitle: String {
         switch settingsRoute {
         case .main: "Settings"
+        case .agents: "Agents"
         case .shortcut: "Voice shortcut"
         case .microphone: "Default microphone"
         }
@@ -585,6 +615,18 @@ private struct GlideIslandRoot: View {
             }
             .buttonStyle(.plain)
 
+            Button(action: {
+                agentIntegrationsManager.refreshNotionStatus()
+                settingsRoute = .agents
+            }) {
+                settingsNavigationRow(
+                    "app.connected.to.app.below.fill",
+                    "Agents",
+                    agentIntegrationsManager.isNotionConnected ? "Notion connected" : "Connect apps"
+                )
+            }
+            .buttonStyle(.plain)
+
             Button(action: { authManager.signOut() }) {
                 settingsActionRow("rectangle.portrait.and.arrow.right", "Log out")
             }
@@ -595,6 +637,78 @@ private struct GlideIslandRoot: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private var agentsSettingsView: some View {
+        VStack(spacing: 10) {
+            notionAgentRow
+
+            if let errorMessage = agentIntegrationsManager.errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.red.opacity(0.82))
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            }
+        }
+        .onAppear {
+            agentIntegrationsManager.refreshNotionStatus()
+        }
+    }
+
+    private var notionAgentRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: agentIntegrationsManager.isNotionConnected ? "checkmark.circle.fill" : "doc.text")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(agentIntegrationsManager.isNotionConnected ? Color.green : DS.Colors.pink300.opacity(0.75))
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Notion")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+                Text(agentIntegrationsManager.notionStatusText)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.38))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if agentIntegrationsManager.isNotionConnected {
+                Button(action: {
+                    agentIntegrationsManager.disconnectNotion()
+                }) {
+                    Text(agentIntegrationsManager.isDisconnecting ? "Removing" : "Disconnect")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.red.opacity(0.86))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule(style: .continuous).fill(Color.red.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .disabled(agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading)
+                .opacity((agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
+            } else {
+                Button(action: {
+                    agentIntegrationsManager.connectNotion()
+                }) {
+                    Text(agentIntegrationsManager.isConnecting ? "Opening" : "Connect")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule(style: .continuous).fill(.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+                .disabled(agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading)
+                .opacity((agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.055)))
     }
 
     private var shortcutSettingsView: some View {
@@ -754,12 +868,6 @@ private struct GlideIslandRoot: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            Button("Replay Onboarding") { companionManager.replayOnboarding() }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.3))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .buttonStyle(.plain)
         }
     }
 }
