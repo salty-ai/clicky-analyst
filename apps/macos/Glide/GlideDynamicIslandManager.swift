@@ -76,7 +76,7 @@ final class GlideDynamicIslandManager {
     // The inner SwiftUI content animates between the collapsed and expanded
     // widths; the outer window stays this fixed size so we don't have to
     // resize the NSPanel on hover.
-    private static let containerSize = CGSize(width: 520, height: 360)
+    private static let containerSize = CGSize(width: 550, height: 360)
 
     init(companionManager: CompanionManager) {
         self.companionManager = companionManager
@@ -153,12 +153,12 @@ private struct GlideIslandRoot: View {
     // Keep the resting island small enough to sit behind the MacBook notch.
     // The clear hover target remains wider/taller so moving over the physical
     // notch expands the island into the full controls.
-    private static let collapsedNotchWidth: CGFloat = 142
-    private static let activeNotchWidth: CGFloat = 360
-    private static let expandedNotchWidth: CGFloat = 440
-    private static let agentsNotchWidth: CGFloat = 520
+    private static let collapsedNotchWidth: CGFloat = 170
+    private static let activeNotchWidth: CGFloat = 440
+    private static let expandedNotchWidth: CGFloat = 470
+    private static let agentsNotchWidth: CGFloat = 550
     private static let collapsedNotchHeight: CGFloat = 24
-    private static let activeNotchHeight: CGFloat = 38
+    private static let activeNotchHeight: CGFloat = 34
     private static let containerHeight: CGFloat = 310
     private static let agentsContainerHeight: CGFloat = 360
     private static let hoverActivationWidth: CGFloat = 220
@@ -180,7 +180,7 @@ private struct GlideIslandRoot: View {
 
     private var currentNotchBottomRadius: CGFloat {
         if isOpen { return 22 }
-        return isActive ? 17 : 10
+        return isActive ? 14 : 10
     }
 
     var body: some View {
@@ -194,11 +194,14 @@ private struct GlideIslandRoot: View {
                     if isOpen {
                         if isShowingSettings {
                             settingsBody
+                                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                         } else {
                             expandedBody
+                                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                         }
                     } else {
                         collapsedBar
+                            .transition(.opacity)
                     }
                 }
                 .frame(width: currentNotchWidth)
@@ -209,20 +212,21 @@ private struct GlideIslandRoot: View {
                 hoverCloseTask?.cancel()
                 if hovering {
                     NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
                         isOpen = true
                     }
                 } else {
                     hoverCloseTask = Task {
-                        try? await Task.sleep(for: .milliseconds(300))
+                        try? await Task.sleep(for: .milliseconds(100))
                         guard !Task.isCancelled else { return }
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
                             isOpen = false
+                            isShowingSettings = false
                         }
                     }
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isOpen)
+            .animation(.spring(response: 0.42, dampingFraction: 0.8), value: isOpen)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isActive)
 
             Spacer(minLength: 0)
@@ -234,67 +238,45 @@ private struct GlideIslandRoot: View {
     // MARK: - Collapsed (notch bar showing state)
 
     private var collapsedBar: some View {
-        ZStack {
-            // Gradient accent glow on the right side
+        HStack(spacing: 0) {
             if isActive {
-                HStack {
-                    Spacer()
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: stateGradientColors,
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 90, height: 28)
-                        .blur(radius: 20)
-                        .opacity(0.4)
-                }
-                .padding(.trailing, 12)
-                .transition(.opacity)
+                // Minimal dot indicator
+                Circle()
+                    .fill(stateColor)
+                    .frame(width: 5, height: 5)
+                    .opacity(0.9)
+
+                Text(stateLabel)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(.leading, 8)
+                    .lineLimit(1)
+                    .transition(.opacity)
+
+                Spacer(minLength: 16)
+
+                activeStateBars
+                    .transition(.opacity)
+            } else {
+                Spacer(minLength: 0)
             }
-
-            HStack(spacing: 0) {
-                if isActive {
-                    Text(stateLabel)
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.78))
-                        .lineLimit(1)
-                        .transition(.opacity.combined(with: .move(edge: .leading)))
-
-                    Spacer(minLength: 24)
-
-                    activeStateBars
-                        .frame(width: 58, alignment: .trailing)
-                        .transition(.opacity.combined(with: .scale))
-                } else {
-                    Spacer(minLength: 0)
-                }
-            }
-            .padding(.horizontal, isActive ? 18 : 0)
         }
+        .padding(.horizontal, isActive ? 16 : 0)
         .frame(maxWidth: .infinity)
         .frame(height: isActive ? Self.activeNotchHeight : Self.collapsedNotchHeight)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: companionManager.voiceState)
     }
 
     private var activeStateBars: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 36.0)) { timeline in
-            HStack(alignment: .center, spacing: 2.5) {
-                ForEach(0..<9, id: \.self) { index in
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: stateGradientColors,
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                        .frame(width: 2.4, height: animatedBarHeight(at: index, date: timeline.date) * 0.82)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<5, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(stateColor.opacity(0.7))
+                        .frame(width: 1.5, height: animatedBarHeight(at: index, date: timeline.date))
                 }
             }
-            .animation(.linear(duration: 0.08), value: companionManager.currentAudioPowerLevel)
+            .animation(.linear(duration: 0.1), value: companionManager.currentAudioPowerLevel)
         }
     }
 
@@ -303,27 +285,25 @@ private struct GlideIslandRoot: View {
 
         switch companionManager.voiceState {
         case .listening:
-            // Match the cursor waveform exactly: five bars with the same audio
-            // profile, easing, idle pulse, and update cadence.
-            let listeningBarProfile: [CGFloat] = [0.3, 0.48, 0.72, 0.95, 1.0, 0.95, 0.72, 0.48, 0.3]
-            let phase = time * 3.6 + CGFloat(index) * 0.35
+            let profile: [CGFloat] = [0.4, 0.7, 1.0, 0.7, 0.4]
+            let phase = time * 3.0 + CGFloat(index) * 0.45
             let normalizedAudioPowerLevel = max(companionManager.currentAudioPowerLevel - 0.008, 0)
-            let easedAudioPowerLevel = pow(min(normalizedAudioPowerLevel * 2.85, 1), 0.76)
-            let reactiveHeight = easedAudioPowerLevel * 10 * listeningBarProfile[index]
-            let idlePulse = (sin(phase) + 1) / 2 * 1.5
+            let easedAudioPowerLevel = pow(min(normalizedAudioPowerLevel * 2.5, 1), 0.8)
+            let reactiveHeight = easedAudioPowerLevel * 8 * profile[index]
+            let idlePulse = (sin(phase) + 1) / 2 * 1.2
             return 3 + reactiveHeight + idlePulse
         case .processing:
-            let phase = time * 3.2 + CGFloat(index) * 0.8
+            let phase = time * 2.4 + CGFloat(index) * 1.0
             let wave = (sin(phase) + 1) / 2
-            return 3 + wave * 8
+            return 3 + wave * 6
         case .agentWorking:
-            let phase = time * 4.1 + CGFloat(index) * 0.55
+            let phase = time * 2.8 + CGFloat(index) * 0.7
             let wave = (sin(phase) + 1) / 2
-            return 4 + wave * 9
+            return 3 + wave * 7
         case .responding:
-            let phase = time * 3.2 + CGFloat(index) * 0.8
+            let phase = time * 2.4 + CGFloat(index) * 0.9
             let wave = (sin(phase) + 1) / 2
-            return 4 + wave * 5
+            return 3 + wave * 4
         case .idle:
             return 3
         }
