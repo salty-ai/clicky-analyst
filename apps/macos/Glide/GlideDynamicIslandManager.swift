@@ -148,6 +148,7 @@ private struct GlideIslandRoot: View {
     @State private var selectedMicrophoneID = AudioInputDevice.defaultInputDeviceID()
     @State private var settingsRoute: GlideSettingsRoute = .main
     @State private var hoverCloseTask: Task<Void, Never>?
+    @State private var gradientPhase: CGFloat = 0
     @Namespace private var cursorSelectionNamespace
 
     // Keep the resting island small enough to sit behind the MacBook notch.
@@ -207,6 +208,34 @@ private struct GlideIslandRoot: View {
                 .frame(width: currentNotchWidth)
                 .background(.black)
                 .clipShape(GlideNotchShape(topRadius: isOpen ? 8 : 6, bottomRadius: currentNotchBottomRadius))
+                .overlay {
+                    if isActive && !isOpen {
+                        HStack {
+                            Spacer()
+                            RoundedRectangle(cornerRadius: currentNotchBottomRadius)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            stateColor.opacity(0),
+                                            stateColor.opacity(0.35),
+                                            stateColor.opacity(0),
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .frame(width: 1.2)
+                                .padding(.vertical, 6)
+                                .offset(x: -1)
+                        }
+                        .transition(.opacity)
+                    }
+                }
+                .onAppear {
+                    withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) {
+                        gradientPhase = 360
+                    }
+                }
             }
             .onHover { hovering in
                 hoverCloseTask?.cancel()
@@ -240,16 +269,9 @@ private struct GlideIslandRoot: View {
     private var collapsedBar: some View {
         HStack(spacing: 0) {
             if isActive {
-                // Minimal dot indicator
-                Circle()
-                    .fill(stateColor)
-                    .frame(width: 5, height: 5)
-                    .opacity(0.9)
-
                 Text(stateLabel)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.white.opacity(0.5))
-                    .padding(.leading, 8)
                     .lineLimit(1)
                     .transition(.opacity)
 
@@ -391,7 +413,7 @@ private struct GlideIslandRoot: View {
         case .idle: "Idle"
         case .listening: "Listening"
         case .processing: "Thinking"
-        case .agentWorking: "Agents are working"        case .responding: "Speaking"
+        case .agentWorking: "Agents on it"        case .responding: "Speaking"
         }
     }
 
@@ -577,7 +599,7 @@ private struct GlideIslandRoot: View {
     private var settingsTitle: String {
         switch settingsRoute {
         case .main: "Settings"
-        case .agents: "Agents"
+        case .agents: "Integrations"
         case .shortcut: "Voice shortcut"
         case .microphone: "Default microphone"
         }
@@ -609,7 +631,7 @@ private struct GlideIslandRoot: View {
             }) {
                 settingsNavigationRow(
                     "app.connected.to.app.below.fill",
-                    "Agents",
+                    "Integrations",
                     agentIntegrationsManager.connectedSummary
                 )
             }
