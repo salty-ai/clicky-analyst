@@ -6,7 +6,7 @@ import { handleChat } from "./routes/chat";
 import {
   handleToolkitConnect,
   handleToolkitDisconnect,
-  handleToolkitStatus,
+  handleToolkitStatuses,
 } from "./routes/integrations";
 import { handleTranscribeToken } from "./routes/transcribe";
 import { handleTTS } from "./routes/tts";
@@ -29,7 +29,7 @@ app.use("/tts", clerkMiddleware());
 app.use("/transcribe-token", clerkMiddleware());
 
 app.post("/chat", requireAuth, (c) => handleChat(c));
-app.get("/integrations/:toolkit/status", requireAuth, (c) => handleToolkitStatus(c));
+app.post("/integrations/statuses", requireAuth, (c) => handleToolkitStatuses(c));
 app.post("/integrations/:toolkit/connect", requireAuth, (c) => handleToolkitConnect(c));
 app.delete("/integrations/:toolkit/disconnect", requireAuth, (c) => handleToolkitDisconnect(c));
 app.post("/tts", requireAuth, (c) => handleTTS(c.req.raw, c.env));

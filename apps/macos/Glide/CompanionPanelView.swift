@@ -99,6 +99,14 @@ final class AgentIntegrationsManager: ObservableObject {
         let status: String?
     }
 
+    private struct ToolkitStatusesRequest: Encodable {
+        let toolkits: [String]
+    }
+
+    private struct ToolkitStatusesResponse: Decodable {
+        let statuses: [String: ToolkitStatusResponse]
+    }
+
     private struct ToolkitConnectResponse: Decodable {
         let redirectUrl: String
     }
@@ -140,21 +148,30 @@ final class AgentIntegrationsManager: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
 
-        for platform in Self.platforms {
-            do {
-                let request = try await makeAuthorizedRequest(path: "/integrations/\(platform.slug)/status", method: "GET")
-                let (data, response) = try await URLSession.shared.data(for: request)
-                try validate(response: response, data: data)
-                let status = try JSONDecoder().decode(ToolkitStatusResponse.self, from: data)
-                states[platform.slug] = state(from: status)
-            } catch {
-                states[platform.slug] = IntegrationState(isConnected: false, statusText: "Unavailable")
-                errorMessage = error.localizedDescription
-            }
-        }
+        do {
+            var request = try await makeAuthorizedRequest(path: "/integrations/statuses", method: "POST")
+            request.httpBody = try JSONEncoder().encode(ToolkitStatusesRequest(toolkits: Self.platforms.map(\.slug)))
 
-        Self.cachedStates = states
-        Self.lastStatusRefresh = Date()
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try validate(response: response, data: data)
+            let statusesResponse = try JSONDecoder().decode(ToolkitStatusesResponse.self, from: data)
+
+            for platform in Self.platforms {
+                if let status = statusesResponse.statuses[platform.slug] {
+                    states[platform.slug] = state(from: status)
+                } else {
+                    states[platform.slug] = IntegrationState(isConnected: false, statusText: "Not connected")
+                }
+            }
+
+            Self.cachedStates = states
+            Self.lastStatusRefresh = Date()
+        } catch {
+            for platform in Self.platforms {
+                states[platform.slug] = IntegrationState(isConnected: false, statusText: "Unavailable")
+            }
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func beginConnection(for platform: Platform) async {

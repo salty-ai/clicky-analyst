@@ -3,30 +3,39 @@ import type { Context } from "hono";
 import { makeComposio } from "../services/composio";
 import type { AppContext } from "../types";
 
-export async function handleToolkitStatus(c: Context<AppContext>): Promise<Response> {
+export async function handleToolkitStatuses(c: Context<AppContext>): Promise<Response> {
   const { userId } = getAuth(c);
   if (!userId) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const toolkit = toolkitParam(c);
-  const composio = makeComposio(c.env);
-  if (!composio) {
-    return c.json({ toolkit, connected: false, configured: false });
+  const body = await c.req.json().catch(() => ({})) as { toolkits?: unknown };
+  const toolkits = Array.isArray(body.toolkits)
+    ? [...new Set(body.toolkits.filter((toolkit): toolkit is string => typeof toolkit === "string").map(normalizedToolkitSlug).filter(Boolean))]
+    : [];
+
+  if (toolkits.length === 0) {
+    return c.json({ configured: true, statuses: {} });
   }
 
+  const composio = makeComposio(c.env);
+  if (!composio) {
+    return c.json({
+      configured: false,
+      statuses: Object.fromEntries(toolkits.map((toolkit) => [toolkit, { toolkit, connected: false, configured: false }])),
+    });
+  }
+
+  // One Composio API call for every requested toolkit instead of one call per toolkit.
   const accounts = await composio.connectedAccounts.list({
     userIds: [userId],
-    toolkitSlugs: [toolkit],
+    toolkitSlugs: toolkits,
   });
-  const connectedAccount = accounts.items.find((account) => account.toolkit.slug === toolkit);
+  const accountByToolkit = new Map(accounts.items.map((account) => [account.toolkit.slug, account]));
 
   return c.json({
-    toolkit,
     configured: true,
-    connected: connectedAccount?.status === "ACTIVE",
-    status: connectedAccount?.status ?? "NOT_CONNECTED",
-    connectedAccountId: connectedAccount?.id,
+    statuses: Object.fromEntries(toolkits.map((toolkit) => [toolkit, statusPayload(toolkit, accountByToolkit.get(toolkit))])),
   });
 }
 
@@ -85,6 +94,16 @@ export async function handleToolkitDisconnect(c: Context<AppContext>): Promise<R
 
 function normalizedToolkitSlug(toolkit: string): string {
   return toolkit.trim().toLowerCase();
+}
+
+function statusPayload(toolkit: string, connectedAccount: { id: string; status?: string; toolkit: { slug: string } } | undefined) {
+  return {
+    toolkit,
+    configured: true,
+    connected: connectedAccount?.status === "ACTIVE",
+    status: connectedAccount?.status ?? "NOT_CONNECTED",
+    connectedAccountId: connectedAccount?.id,
+  };
 }
 
 function toolkitParam(c: Context<AppContext>): string {
