@@ -208,6 +208,7 @@ private struct GlideIslandRoot: View {
             .onHover { hovering in
                 hoverCloseTask?.cancel()
                 if hovering {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         isOpen = true
                     }
