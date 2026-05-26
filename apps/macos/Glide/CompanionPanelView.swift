@@ -198,9 +198,14 @@ final class AgentIntegrationsManager: ObservableObject {
 
             NSWorkspace.shared.open(redirectURL)
             states[platform.slug] = IntegrationState(isConnected: false, statusText: "Waiting for \(platform.name)")
+            Self.cachedStates = nil
+            Self.lastStatusRefresh = nil
 
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            await loadStatuses(force: true)
+            for delay in [2_000_000_000, 4_000_000_000, 8_000_000_000] as [UInt64] {
+                try? await Task.sleep(nanoseconds: delay)
+                await loadStatuses(force: true)
+                if state(for: platform).isConnected { break }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -460,7 +465,7 @@ struct CompanionPanelView: View {
         return Button(action: {
             selectedTab = tab
             if tab == .agents {
-                agentIntegrationsManager.refreshStatuses()
+                agentIntegrationsManager.refreshStatuses(force: true)
             }
         }) {
             HStack(spacing: 5) {
@@ -999,51 +1004,6 @@ struct CompanionPanelView: View {
                 .foregroundColor(DS.Colors.textTertiary)
         }
         .padding(.vertical, 4)
-    }
-
-    
-
-    private var modelPickerRow: some View {
-        HStack {
-            Text("Model")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(DS.Colors.textSecondary)
-
-            Spacer()
-
-            HStack(spacing: 0) {
-                modelOptionButton(label: "GPT", modelID: "openai/gpt-5.4-mini")
-                modelOptionButton(label: "Kimi", modelID: "moonshotai/kimi-k2.6")
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(DS.Colors.borderSubtle, lineWidth: 0.5)
-            )
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func modelOptionButton(label: String, modelID: String) -> some View {
-        let isSelected = companionManager.selectedModel == modelID
-        return Button(action: {
-            companionManager.setSelectedModel(modelID)
-        }) {
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(isSelected ? DS.Colors.textPrimary : DS.Colors.textTertiary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(isSelected ? Color.white.opacity(0.1) : Color.clear)
-                )
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
     }
 
     

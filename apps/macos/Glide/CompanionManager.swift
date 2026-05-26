@@ -91,7 +91,7 @@ final class CompanionManager: ObservableObject {
     private static let workerBaseURL = AppBundleConfiguration.serverBaseURL
 
     private lazy var aiSDK: AISDK = {
-        return AISDK(proxyURL: "\(Self.workerBaseURL)/chat", model: selectedModel)
+        return AISDK(proxyURL: "\(Self.workerBaseURL)/chat")
     }()
 
     private lazy var gradiumTTSClient: GradiumTTSClient = {
@@ -126,19 +126,11 @@ final class CompanionManager: ObservableObject {
     @Published private(set) var isOverlayVisible: Bool = false
 
     
-    @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedAIModel") ?? "openai/gpt-5.4-mini"
-
     @Published var selectedCursorColor: GlideCursorColor = GlideCursorColor(rawValue: UserDefaults.standard.string(forKey: "selectedCursorColor") ?? "") ?? .pink
 
     func setSelectedCursorColor(_ color: GlideCursorColor) {
         selectedCursorColor = color
         UserDefaults.standard.set(color.rawValue, forKey: "selectedCursorColor")
-    }
-
-    func setSelectedModel(_ model: String) {
-        selectedModel = model
-        UserDefaults.standard.set(model, forKey: "selectedAIModel")
-        aiSDK.model = model
     }
 
     

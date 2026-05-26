@@ -1,7 +1,7 @@
 import { getAuth } from "@clerk/hono";
 import { createGateway, stepCountIs, streamText } from "ai";
 import type { Context } from "hono";
-import { shouldUseAppIntegrationTools, withAgentInstructions, withPointerToolInstructions } from "../chat/instructions";
+import { appToolkitsMentionedInRequest, shouldUseAppIntegrationTools, withAgentInstructions, withPointerToolInstructions } from "../chat/instructions";
 import { latestUserText, toGatewayModelId, toModelMessages } from "../chat/messages";
 import { getToolsForUser } from "../services/composio";
 import type { AppContext, ChatRequestBody } from "../types";
@@ -15,7 +15,8 @@ export async function handleChat(c: Context<AppContext>): Promise<Response> {
   const messages = toModelMessages(chatRequestBody.messages ?? []);
   const latestUserRequest = latestUserText(chatRequestBody.messages ?? []);
   const shouldLoadAppTools = shouldUseAppIntegrationTools(latestUserRequest);
-  const composioContext = userId && shouldLoadAppTools ? await getToolsForUser(env, userId) : undefined;
+  const requestedToolkits = appToolkitsMentionedInRequest(latestUserRequest);
+  const composioContext = userId && shouldLoadAppTools ? await getToolsForUser(env, userId, requestedToolkits) : undefined;
   const tools = composioContext?.tools as Parameters<typeof streamText>[0]["tools"] | undefined;
   const activeToolkits = composioContext?.activeToolkits ?? [];
   const hasAppTools = tools && Object.keys(tools).length > 0;

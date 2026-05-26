@@ -6,12 +6,10 @@ class AISDK {
     private static var hasStartedTLSWarmup = false
 
     private let apiURL: URL
-    var model: String
     private let session: URLSession
 
-    init(proxyURL: String, model: String = "openai/gpt-5.4-mini") {
+    init(proxyURL: String) {
         self.apiURL = URL(string: proxyURL)!
-        self.model = model
 
         
         
@@ -140,7 +138,6 @@ class AISDK {
         messages.append(["role": "user", "content": contentBlocks])
 
         let body: [String: Any] = [
-            "model": model,
             "maxOutputTokens": 1024,
             "system": systemPrompt,
             "messages": messages
@@ -270,7 +267,6 @@ class AISDK {
         messages.append(["role": "user", "content": contentBlocks])
 
         let body: [String: Any] = [
-            "model": model,
             "maxOutputTokens": 256,
             "system": systemPrompt,
             "messages": messages

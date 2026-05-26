@@ -12,6 +12,29 @@ export function shouldUseAppIntegrationTools(request: string | undefined): boole
   return !screenOnlyIntent || explicitAppIntent || externalActionIntent;
 }
 
+export function appToolkitsMentionedInRequest(request: string | undefined): string[] {
+  if (!request) {
+    return [];
+  }
+
+  const text = request.toLowerCase();
+  const matches: string[] = [];
+  const add = (toolkit: string) => {
+    if (!matches.includes(toolkit)) {
+      matches.push(toolkit);
+    }
+  };
+
+  if (/\bnotion\b/.test(text)) add("notion");
+  if (/\bgoogle\s*calendar\b|\bcalendar\b/.test(text)) add("googlecalendar");
+  if (/\bgoogle\s*docs?\b|\bdocs?\b|\bdocument\b/.test(text)) add("googledocs");
+  if (/\bgoogle\s*drive\b|\bdrive\b/.test(text)) add("googledrive");
+  if (/\bgoogle\s*sheets?\b|\bsheets?\b|\bspreadsheet\b/.test(text)) add("googlesheets");
+  if (/\bgoogle\s*slides?\b|\bslides?\b|\bpresentation\b/.test(text)) add("googleslides");
+
+  return matches;
+}
+
 export function withPointerToolInstructions(system: string | undefined): string | undefined {
   const instructions = `
 

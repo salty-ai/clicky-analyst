@@ -1,6 +1,6 @@
 import { getAuth } from "@clerk/hono";
 import type { Context } from "hono";
-import { makeComposio } from "../services/composio";
+import { composioErrorSummary, isComposioAuthError, listConnectedAccounts, makeComposio } from "../services/composio";
 import type { AppContext } from "../types";
 
 export async function handleToolkitStatuses(c: Context<AppContext>): Promise<Response> {
@@ -26,12 +26,32 @@ export async function handleToolkitStatuses(c: Context<AppContext>): Promise<Res
     });
   }
 
-  // One Composio API call for every requested toolkit instead of one call per toolkit.
-  const accounts = await composio.connectedAccounts.list({
+  const accounts = await listConnectedAccounts(composio, {
     userIds: [userId],
     toolkitSlugs: toolkits,
+    limit: 100,
+  }).catch((error) => {
+    console.error("Composio status lookup failed", composioErrorSummary(error));
+    if (isComposioAuthError(error)) {
+      return undefined;
+    }
+    throw error;
   });
-  const accountByToolkit = new Map(accounts.items.map((account) => [account.toolkit.slug, account]));
+
+  if (!accounts) {
+    return c.json({
+      configured: false,
+      error: "COMPOSIO_API_KEY is invalid or unauthorized",
+      statuses: Object.fromEntries(toolkits.map((toolkit) => [toolkit, { toolkit, connected: false, configured: false, status: "AUTH_ERROR" }])),
+    }, 502);
+  }
+  const accountByToolkit = new Map<string, (typeof accounts)[number]>();
+  for (const account of accounts) {
+    const existing = accountByToolkit.get(account.toolkit.slug);
+    if (!existing || (existing.status !== "ACTIVE" && account.status === "ACTIVE")) {
+      accountByToolkit.set(account.toolkit.slug, account);
+    }
+  }
 
   return c.json({
     configured: true,
@@ -51,12 +71,24 @@ export async function handleToolkitConnect(c: Context<AppContext>): Promise<Resp
     return c.json({ error: "COMPOSIO_API_KEY is not configured" }, 500);
   }
 
-  const authConfigs = await composio.authConfigs.list({ toolkit });
-  const authConfig = authConfigs.items[0] ?? await composio.authConfigs.create(toolkit);
+  const connection = await (async () => {
+    const authConfigs = await composio.authConfigs.list({ toolkit });
+    const authConfig = authConfigs.items[0] ?? await composio.authConfigs.create(toolkit);
 
-  const connection = await composio.connectedAccounts.link(userId, authConfig.id, {
-    callbackUrl: "glide://composio/callback",
+    return composio.connectedAccounts.link(userId, authConfig.id, {
+      callbackUrl: "glide://composio/callback",
+    });
+  })().catch((error) => {
+    console.error("Composio connection start failed", composioErrorSummary(error));
+    if (isComposioAuthError(error)) {
+      return undefined;
+    }
+    throw error;
   });
+
+  if (!connection) {
+    return c.json({ error: "COMPOSIO_API_KEY is invalid or unauthorized" }, 502);
+  }
 
   return c.json({
     toolkit,
@@ -77,11 +109,23 @@ export async function handleToolkitDisconnect(c: Context<AppContext>): Promise<R
     return c.json({ error: "COMPOSIO_API_KEY is not configured" }, 500);
   }
 
-  const accounts = await composio.connectedAccounts.list({
+  const accounts = await listConnectedAccounts(composio, {
     userIds: [userId],
     toolkitSlugs: [toolkit],
+    limit: 100,
+  }).catch((error) => {
+    console.error("Composio disconnect lookup failed", composioErrorSummary(error));
+    if (isComposioAuthError(error)) {
+      return undefined;
+    }
+    throw error;
   });
-  const connectedAccounts = accounts.items.filter((account) => account.toolkit.slug === toolkit);
+
+  if (!accounts) {
+    return c.json({ error: "COMPOSIO_API_KEY is invalid or unauthorized" }, 502);
+  }
+
+  const connectedAccounts = accounts.filter((account) => account.toolkit.slug === toolkit);
 
   await Promise.all(connectedAccounts.map((account) => composio.connectedAccounts.delete(account.id)));
 
