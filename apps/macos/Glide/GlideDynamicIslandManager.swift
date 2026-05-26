@@ -76,7 +76,7 @@ final class GlideDynamicIslandManager {
     // The inner SwiftUI content animates between the collapsed and expanded
     // widths; the outer window stays this fixed size so we don't have to
     // resize the NSPanel on hover.
-    private static let containerSize = CGSize(width: 440, height: 310)
+    private static let containerSize = CGSize(width: 550, height: 360)
 
     init(companionManager: CompanionManager) {
         self.companionManager = companionManager
@@ -132,6 +132,7 @@ final class GlideDynamicIslandManager {
 
 private enum GlideSettingsRoute: Equatable {
     case main
+    case agents
     case shortcut
     case microphone
 }
@@ -139,6 +140,7 @@ private enum GlideSettingsRoute: Equatable {
 private struct GlideIslandRoot: View {
     @ObservedObject var companionManager: CompanionManager
     @ObservedObject private var authManager = GlideAuthManager.shared
+    @StateObject private var agentIntegrationsManager = AgentIntegrationsManager()
     @State private var isOpen = false
     @State private var isShowingSettings = false
     @State private var selectedShortcut = BuddyPushToTalkShortcut.currentShortcutOption
@@ -146,19 +148,40 @@ private struct GlideIslandRoot: View {
     @State private var selectedMicrophoneID = AudioInputDevice.defaultInputDeviceID()
     @State private var settingsRoute: GlideSettingsRoute = .main
     @State private var hoverCloseTask: Task<Void, Never>?
+    @State private var gradientPhase: CGFloat = 0
+    @Namespace private var cursorSelectionNamespace
 
     // Keep the resting island small enough to sit behind the MacBook notch.
     // The clear hover target remains wider/taller so moving over the physical
     // notch expands the island into the full controls.
-    private static let collapsedNotchWidth: CGFloat = 142
-    private static let expandedNotchWidth: CGFloat = 440
+    private static let collapsedNotchWidth: CGFloat = 170
+    private static let activeNotchWidth: CGFloat = 440
+    private static let expandedNotchWidth: CGFloat = 470
+    private static let agentsNotchWidth: CGFloat = 550
     private static let collapsedNotchHeight: CGFloat = 24
+    private static let activeNotchHeight: CGFloat = 34
     private static let containerHeight: CGFloat = 310
+    private static let agentsContainerHeight: CGFloat = 360
     private static let hoverActivationWidth: CGFloat = 220
     private static let hoverActivationHeight: CGFloat = 32
 
     private var isActive: Bool {
         companionManager.voiceState != .idle
+    }
+
+    private var currentNotchWidth: CGFloat {
+        if isOpen && isShowingSettings && settingsRoute == .agents { return Self.agentsNotchWidth }
+        if isOpen { return Self.expandedNotchWidth }
+        return isActive ? Self.activeNotchWidth : Self.collapsedNotchWidth
+    }
+
+    private var currentContainerHeight: CGFloat {
+        isOpen && isShowingSettings && settingsRoute == .agents ? Self.agentsContainerHeight : Self.containerHeight
+    }
+
+    private var currentNotchBottomRadius: CGFloat {
+        if isOpen { return 22 }
+        return isActive ? 14 : 10
     }
 
     var body: some View {
@@ -172,105 +195,110 @@ private struct GlideIslandRoot: View {
                     if isOpen {
                         if isShowingSettings {
                             settingsBody
+                                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                         } else {
                             expandedBody
+                                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                         }
                     } else {
                         collapsedBar
+                            .transition(.opacity)
                     }
                 }
-                .frame(width: isOpen ? Self.expandedNotchWidth : Self.collapsedNotchWidth)
+                .frame(width: currentNotchWidth)
                 .background(.black)
-                .clipShape(GlideNotchShape(topRadius: isOpen ? 8 : 6, bottomRadius: isOpen ? 22 : 10))
+                .clipShape(GlideNotchShape(topRadius: isOpen ? 8 : 6, bottomRadius: currentNotchBottomRadius))
+                .overlay {
+                    if isActive && !isOpen {
+                        HStack {
+                            Spacer()
+                            RoundedRectangle(cornerRadius: currentNotchBottomRadius)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            stateColor.opacity(0),
+                                            stateColor.opacity(0.35),
+                                            stateColor.opacity(0),
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .frame(width: 1.2)
+                                .padding(.vertical, 6)
+                                .offset(x: -1)
+                        }
+                        .transition(.opacity)
+                    }
+                }
+                .onAppear {
+                    withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) {
+                        gradientPhase = 360
+                    }
+                }
             }
             .onHover { hovering in
                 hoverCloseTask?.cancel()
                 if hovering {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
                         isOpen = true
                     }
                 } else {
                     hoverCloseTask = Task {
-                        try? await Task.sleep(for: .milliseconds(300))
+                        try? await Task.sleep(for: .milliseconds(100))
                         guard !Task.isCancelled else { return }
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
                             isOpen = false
+                            isShowingSettings = false
                         }
                     }
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isOpen)
+            .animation(.spring(response: 0.42, dampingFraction: 0.8), value: isOpen)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isActive)
 
             Spacer(minLength: 0)
         }
-        .frame(width: Self.expandedNotchWidth, height: Self.containerHeight, alignment: .top)
+        .frame(width: Self.agentsNotchWidth, height: currentContainerHeight, alignment: .top)
         .allowsHitTesting(true)
     }
 
     // MARK: - Collapsed (notch bar showing state)
 
     private var collapsedBar: some View {
-        ZStack {
-            // Gradient accent glow on the right side
+        HStack(spacing: 0) {
             if isActive {
-                HStack {
-                    Spacer()
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: stateGradientColors,
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 90, height: 28)
-                        .blur(radius: 20)
-                        .opacity(0.4)
-                }
-                .padding(.trailing, 12)
-                .transition(.opacity)
+                Text(stateLabel)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(1)
+                    .transition(.opacity)
+
+                Spacer(minLength: 16)
+
+                activeStateBars
+                    .transition(.opacity)
+            } else {
+                Spacer(minLength: 0)
             }
-
-            HStack(spacing: 0) {
-                if isActive {
-                    Text(stateLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.72))
-                        .lineLimit(1)
-                        .transition(.opacity.combined(with: .move(edge: .leading)))
-
-                    Spacer(minLength: 0)
-
-                    activeStateBars
-                        .transition(.opacity.combined(with: .scale))
-                } else {
-                    Spacer(minLength: 0)
-                }
-            }
-            .padding(.horizontal, isActive ? 12 : 0)
         }
+        .padding(.horizontal, isActive ? 16 : 0)
         .frame(maxWidth: .infinity)
-        .frame(height: isActive ? 30 : Self.collapsedNotchHeight)
+        .frame(height: isActive ? Self.activeNotchHeight : Self.collapsedNotchHeight)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: companionManager.voiceState)
     }
 
     private var activeStateBars: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 36.0)) { timeline in
-            HStack(spacing: 2) {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            HStack(alignment: .center, spacing: 3) {
                 ForEach(0..<5, id: \.self) { index in
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: stateGradientColors,
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                        .frame(width: 2.5, height: animatedBarHeight(at: index, date: timeline.date))
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(stateColor.opacity(0.7))
+                        .frame(width: 1.5, height: animatedBarHeight(at: index, date: timeline.date))
                 }
             }
-            .animation(.linear(duration: 0.08), value: companionManager.currentAudioPowerLevel)
+            .animation(.linear(duration: 0.1), value: companionManager.currentAudioPowerLevel)
         }
     }
 
@@ -279,23 +307,25 @@ private struct GlideIslandRoot: View {
 
         switch companionManager.voiceState {
         case .listening:
-            // Match the cursor waveform exactly: five bars with the same audio
-            // profile, easing, idle pulse, and update cadence.
-            let listeningBarProfile: [CGFloat] = [0.4, 0.7, 1.0, 0.7, 0.4]
-            let phase = time * 3.6 + CGFloat(index) * 0.35
+            let profile: [CGFloat] = [0.4, 0.7, 1.0, 0.7, 0.4]
+            let phase = time * 3.0 + CGFloat(index) * 0.45
             let normalizedAudioPowerLevel = max(companionManager.currentAudioPowerLevel - 0.008, 0)
-            let easedAudioPowerLevel = pow(min(normalizedAudioPowerLevel * 2.85, 1), 0.76)
-            let reactiveHeight = easedAudioPowerLevel * 10 * listeningBarProfile[index]
-            let idlePulse = (sin(phase) + 1) / 2 * 1.5
+            let easedAudioPowerLevel = pow(min(normalizedAudioPowerLevel * 2.5, 1), 0.8)
+            let reactiveHeight = easedAudioPowerLevel * 8 * profile[index]
+            let idlePulse = (sin(phase) + 1) / 2 * 1.2
             return 3 + reactiveHeight + idlePulse
         case .processing:
-            let phase = time * 3.2 + CGFloat(index) * 0.8
+            let phase = time * 2.4 + CGFloat(index) * 1.0
             let wave = (sin(phase) + 1) / 2
-            return 3 + wave * 8
+            return 3 + wave * 6
+        case .agentWorking:
+            let phase = time * 2.8 + CGFloat(index) * 0.7
+            let wave = (sin(phase) + 1) / 2
+            return 3 + wave * 7
         case .responding:
-            let phase = time * 3.2 + CGFloat(index) * 0.8
+            let phase = time * 2.4 + CGFloat(index) * 0.9
             let wave = (sin(phase) + 1) / 2
-            return 4 + wave * 5
+            return 3 + wave * 4
         case .idle:
             return 3
         }
@@ -365,6 +395,11 @@ private struct GlideIslandRoot: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color(hex: "#A78BFA"))
                 .symbolEffect(.pulse, isActive: true)
+        case .agentWorking:
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color(hex: "#F472B6"))
+                .symbolEffect(.pulse, isActive: true)
         case .responding:
             Image(systemName: "speaker.wave.2")
                 .font(.system(size: 11, weight: .medium))
@@ -378,7 +413,7 @@ private struct GlideIslandRoot: View {
         case .idle: "Idle"
         case .listening: "Listening"
         case .processing: "Thinking"
-        case .responding: "Speaking"
+        case .agentWorking: "Agents on it"        case .responding: "Speaking"
         }
     }
 
@@ -387,6 +422,7 @@ private struct GlideIslandRoot: View {
         case .idle: .white.opacity(0.3)
         case .listening: Color(hex: "#4ADE80")
         case .processing: Color(hex: "#A78BFA")
+        case .agentWorking: Color(hex: "#F472B6")
         case .responding: Color(hex: "#60A5FA")
         }
     }
@@ -396,6 +432,7 @@ private struct GlideIslandRoot: View {
         case .idle: [.white.opacity(0.1), .white.opacity(0.2)]
         case .listening: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")]
         case .processing: [Color(hex: "#7C3AED"), Color(hex: "#A78BFA")]
+        case .agentWorking: [Color(hex: "#DB2777"), Color(hex: "#F472B6")]
         case .responding: [Color(hex: "#3B82F6"), Color(hex: "#60A5FA")]
         }
     }
@@ -531,22 +568,24 @@ private struct GlideIslandRoot: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(DS.Colors.pink300.opacity(0.9))
             }
-            .padding(.horizontal, 18)
-            .frame(height: 32)
+            .padding(.horizontal, settingsRoute == .agents ? 22 : 18)
+            .frame(height: settingsRoute == .agents ? 40 : 32)
 
             ScrollView(.vertical, showsIndicators: false) {
                 Group {
                     switch settingsRoute {
                     case .main:
                         settingsMainView
+                    case .agents:
+                        agentsSettingsView
                     case .shortcut:
                         shortcutSettingsView
                     case .microphone:
                         microphoneSettingsView
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
+                .padding(.horizontal, settingsRoute == .agents ? 20 : 14)
+                .padding(.top, settingsRoute == .agents ? 10 : 8)
                 .padding(.bottom, 16)
             }
         }
@@ -560,6 +599,7 @@ private struct GlideIslandRoot: View {
     private var settingsTitle: String {
         switch settingsRoute {
         case .main: "Settings"
+        case .agents: "Integrations"
         case .shortcut: "Voice shortcut"
         case .microphone: "Default microphone"
         }
@@ -585,6 +625,18 @@ private struct GlideIslandRoot: View {
             }
             .buttonStyle(.plain)
 
+            Button(action: {
+                agentIntegrationsManager.refreshStatuses()
+                settingsRoute = .agents
+            }) {
+                settingsNavigationRow(
+                    "app.connected.to.app.below.fill",
+                    "Integrations",
+                    agentIntegrationsManager.connectedSummary
+                )
+            }
+            .buttonStyle(.plain)
+
             Button(action: { authManager.signOut() }) {
                 settingsActionRow("rectangle.portrait.and.arrow.right", "Log out")
             }
@@ -595,6 +647,90 @@ private struct GlideIslandRoot: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private var agentsSettingsView: some View {
+        VStack(spacing: 10) {
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: 0) {
+                    ForEach(AgentIntegrationsManager.platforms) { platform in
+                        agentRow(platform: platform)
+                    }
+                }
+            }
+            .frame(maxHeight: 274)
+
+            if let errorMessage = agentIntegrationsManager.errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.red.opacity(0.82))
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            }
+        }
+        .onAppear {
+            agentIntegrationsManager.refreshStatuses()
+        }
+    }
+
+    private func agentRow(platform: AgentIntegrationsManager.Platform) -> some View {
+        let state = agentIntegrationsManager.state(for: platform)
+        let isBusy = agentIntegrationsManager.activePlatformSlug == platform.slug
+
+        return HStack(spacing: 12) {
+            PlatformLogoView(platform: platform, isConnected: state.isConnected, size: 26)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(platform.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.86))
+                Text(state.statusText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.36))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if state.isConnected {
+                Button(action: {
+                    agentIntegrationsManager.disconnect(platform)
+                }) {
+                    Text(isBusy && agentIntegrationsManager.isDisconnecting ? "Removing" : "Disconnect")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.red.opacity(0.86))
+                        .frame(minWidth: 86)
+                        .padding(.vertical, 6)
+                        .background(Capsule(style: .continuous).fill(Color.red.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+                .disabled(agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading)
+                .opacity((agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isConnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
+            } else {
+                Button(action: {
+                    agentIntegrationsManager.connect(platform)
+                }) {
+                    Text(isBusy && agentIntegrationsManager.isConnecting ? "Opening" : "Connect")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .frame(minWidth: 86)
+                        .padding(.vertical, 6)
+                        .background(Capsule(style: .continuous).fill(.white.opacity(0.09)))
+                }
+                .buttonStyle(.plain)
+                .disabled(agentIntegrationsManager.isConnecting || agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading)
+                .opacity((agentIntegrationsManager.isConnecting || agentIntegrationsManager.isDisconnecting || agentIntegrationsManager.isLoading) ? 0.65 : 1)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 9)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.6)
+                .foregroundStyle(.white.opacity(0.06)),
+            alignment: .bottom
+        )
     }
 
     private var shortcutSettingsView: some View {
@@ -731,36 +867,68 @@ private struct GlideIslandRoot: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Cursor color")
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(.white.opacity(0.8))
-                Spacer()
-                ForEach(GlideCursorColor.allCases) { color in
-                    Button(action: { companionManager.setSelectedCursorColor(color) }) {
-                        Circle()
-                            .fill(color.accentColor)
-                            .frame(width: 18, height: 18)
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(companionManager.selectedCursorColor == color ? 0.9 : 0.2), lineWidth: companionManager.selectedCursorColor == color ? 2 : 1)
-                            )
-                            .shadow(color: color.accentColor.opacity(companionManager.selectedCursorColor == color ? 0.5 : 0), radius: 6, x: 0, y: 0)
-                            .accessibilityLabel(color.displayName)
+
+                HStack(spacing: 0) {
+                    ForEach(GlideCursorColor.allCases) { color in
+                        cursorColorSegment(color)
                     }
-                    .buttonStyle(.plain)
                 }
+                .frame(height: 42)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.white.opacity(0.055))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.white.opacity(0.08), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            Button("Replay Onboarding") { companionManager.replayOnboarding() }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.3))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .buttonStyle(.plain)
         }
+    }
+
+    private func cursorColorSegment(_ color: GlideCursorColor) -> some View {
+        let isSelected = companionManager.selectedCursorColor == color
+
+        return Button(action: { companionManager.setSelectedCursorColor(color) }) {
+            ZStack {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(color.accentColor.opacity(0.16))
+                        .matchedGeometryEffect(id: "selectedCursorColor", in: cursorSelectionNamespace)
+                }
+
+                MinimalPinkCursorPointer()
+                    .fill(color.primaryColor)
+                    .frame(width: 18, height: 22)
+                    .shadow(color: color.primaryColor.opacity(isSelected ? 0.55 : 0.25), radius: isSelected ? 7 : 3, x: 0, y: 0)
+                    .overlay(
+                        MinimalPinkCursorPointer()
+                            .stroke(.white.opacity(isSelected ? 0.55 : 0.18), lineWidth: isSelected ? 1.1 : 0.7)
+                            .frame(width: 18, height: 22)
+                    )
+                    .rotationEffect(.degrees(-8))
+                    .scaleEffect(isSelected ? 1.08 : 0.92)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .trailing) {
+                if color != GlideCursorColor.allCases.last {
+                    Rectangle()
+                        .fill(.white.opacity(0.075))
+                        .frame(width: 1, height: 22)
+                }
+            }
+            .contentShape(Rectangle())
+            .accessibilityLabel("Select \(color.displayName) cursor")
+        }
+        .buttonStyle(.plain)
     }
 }
 

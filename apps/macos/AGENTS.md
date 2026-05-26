@@ -5,7 +5,7 @@
 
 ## Overview
 
-macOS menu bar companion app. Lives entirely in the macOS status bar (no dock icon, no main window). Clicking the menu bar icon opens a custom floating panel with companion voice controls. Uses push-to-talk (ctrl+option) to capture voice input, transcribes it via AssemblyAI streaming, and sends the transcript + a screenshot of the user's screen to the AI SDK backend. The model responds with text (streamed via SSE) and voice (ElevenLabs TTS). A blue cursor overlay can fly to and point at UI elements the model references on any connected monitor.
+macOS menu bar companion app. Lives entirely in the macOS status bar (no dock icon, no main window). Clicking the menu bar icon opens a custom floating panel with companion voice controls. Uses push-to-talk (ctrl+option) to capture voice input, transcribes it via AssemblyAI streaming, and sends the transcript + a screenshot of the user's screen to the AI SDK backend. The model responds with text (streamed via SSE) and voice (Gradium TTS). A blue cursor overlay can fly to and point at UI elements the model references on any connected monitor.
 
 All API keys live on a Cloudflare Worker proxy — nothing sensitive ships in the app.
 
@@ -16,7 +16,7 @@ All API keys live on a Cloudflare Worker proxy — nothing sensitive ships in th
 - **Pattern**: MVVM with `@StateObject` / `@Published` state management
 - **AI Chat**: Vercel AI Gateway + AI SDK inside the Cloudflare Worker proxy with SSE streaming
 - **Speech-to-Text**: AssemblyAI real-time streaming (`u3-rt-pro` model) via websocket, with Apple Speech as fallback
-- **Text-to-Speech**: ElevenLabs (`eleven_flash_v2_5` model) via Cloudflare Worker proxy
+- **Text-to-Speech**: Gradium via Cloudflare Worker proxy
 - **Screen Capture**: ScreenCaptureKit (macOS 14.2+), multi-monitor support
 - **Voice Input**: Push-to-talk via `AVAudioEngine` + pluggable transcription-provider layer. System-wide keyboard shortcut via listen-only CGEvent tap.
 - **Element Pointing**: The model uses the pointAt tool to produce `[POINT:x,y:label:screenN]` tags in responses. The overlay parses these, maps coordinates to the correct monitor, and animates the blue cursor along a bezier arc to the target.
@@ -30,11 +30,11 @@ The app never calls external APIs directly. All requests go through a Cloudflare
 | Route | Upstream | Purpose |
 |-------|----------|---------|
 | `POST /chat` | Vercel AI Gateway via AI SDK | AI SDK vision + streaming chat |
-| `POST /tts` | `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` | Gemini TTS audio |
+| `POST /tts` | `api.gradium.ai/api/post/speech/tts` | Gradium TTS audio |
 | `POST /transcribe-token` | `streaming.assemblyai.com/v3/token` | Fetches a short-lived (480s) AssemblyAI websocket token |
 
-Worker secrets: `AI_GATEWAY_API_KEY`, `ASSEMBLYAI_API_KEY`, `GEMINI_API_KEY`
-Worker vars: `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`
+Worker secrets: `AI_GATEWAY_API_KEY`, `ASSEMBLYAI_API_KEY`, `GRADIUM_API_KEY`
+Worker vars: `GRADIUM_TTS_MODEL`, `GRADIUM_TTS_VOICE_ID`
 
 ### Key Architecture Decisions
 
@@ -57,7 +57,7 @@ Worker vars: `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`
 | `GlideApp.swift` | ~131 | Menu bar app entry point. Uses `@NSApplicationDelegateAdaptor` with `CompanionAppDelegate` which always starts `CompanionManager`, then branches on `companionManager.hasCompletedOnboarding`: on first launch it presents the desktop onboarding window via `OnboardingWindowController` and defers menu-bar/Dynamic Island setup until the user finishes; on subsequent launches it goes straight to `MenuBarPanelManager` + Dynamic Island. No persistent main window — the app lives entirely in the status bar after onboarding. |
 | `OnboardingWindowController.swift` | ~125 | First-launch desktop onboarding window controller. Owns a regular `NSWindow` hosting `OnboardingView` via `NSHostingView`. Flips `NSApp.activationPolicy` to `.regular` (so a Dock icon and standard window chrome appear during onboarding) and back to `.accessory` after the user finishes. Standard macOS chrome (`.titled, .closable, .fullSizeContentView`) with traffic lights visible but title hidden, miniaturize/zoom buttons disabled, and `isOpaque = false` + clear `backgroundColor` so the SwiftUI `NSVisualEffectView` material shows through. Closing the window before completion calls `NSApp.terminate(nil)` so the user never lands in a half-onboarded state with no menu-bar icon. |
 | `OnboardingView.swift` | ~505 | SwiftUI view shown inside the first-launch onboarding window. Apple Setup-Assistant aesthetic: adaptive light/dark via system colors (`.primary`, `.secondary`, `Color(NSColor.controlBackgroundColor)`, `Color(NSColor.separatorColor)`), an `NSVisualEffectView` `.windowBackground` material painted behind the view, SF Pro hierarchy (32pt bold hero, 14pt body, 13pt list rows), centered hero compositions on Welcome/Ready, and an inset grouped permission list styled like System Settings panes (rounded rectangle background + 0.5pt separator border, divider rules between rows, native `.bordered` "Enable" buttons at `.controlSize(.small)`). The whole view applies `.tint()` with the Glide brand pink so `.borderedProminent` Continue buttons and the brand triangle pick it up. The Glide brand mark is the same triangle as the menu-bar status icon, re-implemented as a SwiftUI `Shape` (`GlideBrandTriangleShape`). Three steps: Welcome → Permissions → Ready, with horizontal slide-and-fade transitions. The "Continue" button on the permissions step is disabled until `companionManager.allPermissionsGranted && companionManager.hasInputMonitoringPermission`. |
-| `CompanionManager.swift` | ~1026 | Central state machine. Owns dictation, shortcut monitoring, screen capture, AI SDK client, ElevenLabs TTS, and overlay management. Tracks voice state (idle/listening/processing/responding), conversation history, model selection, and cursor visibility. Coordinates the full push-to-talk → screenshot → AI SDK → TTS → pointing pipeline. |
+| `CompanionManager.swift` | ~1026 | Central state machine. Owns dictation, shortcut monitoring, screen capture, AI SDK client, Gradium TTS, and overlay management. Tracks voice state (idle/listening/processing/responding), conversation history, model selection, and cursor visibility. Coordinates the full push-to-talk → screenshot → AI SDK → TTS → pointing pipeline. |
 | `MenuBarPanelManager.swift` | ~243 | NSStatusItem + custom NSPanel lifecycle. Creates the menu bar icon, manages the floating companion panel (show/hide/position), installs click-outside-to-dismiss monitor. |
 | `CompanionPanelView.swift` | ~761 | SwiftUI panel content for the menu bar dropdown. Shows companion status, push-to-talk instructions, model picker (Sonnet/Opus), permissions UI, DM feedback button, and quit button. Dark aesthetic using `DS` design system. |
 | `OverlayWindow.swift` | ~881 | Full-screen transparent overlay hosting the blue cursor, response text, waveform, and spinner. Handles cursor animation, element pointing with bezier arcs, multi-monitor coordinate mapping, and fade-out transitions. |
@@ -70,13 +70,13 @@ Worker vars: `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`
 | `BuddyAudioConversionSupport.swift` | ~70 | Audio conversion helpers. Converts live mic buffers to PCM16 mono audio. |
 | `GlobalPushToTalkShortcutMonitor.swift` | ~132 | System-wide push-to-talk monitor. Owns the listen-only `CGEvent` tap and publishes press/release transitions. |
 | `AISDK.swift` | ~291 | AI SDK backend client with streaming (SSE) and non-streaming modes. TLS warmup optimization, image MIME detection, conversation history support. |
-| `ElevenLabsTTSClient.swift` | ~81 | ElevenLabs TTS client. Sends text to the Worker proxy, plays back audio via `AVAudioPlayer`. Exposes `isPlaying` for transient cursor scheduling. |
+| `GradiumTTSClient.swift` | ~81 | Gradium TTS client. Sends text to the Worker proxy, plays back audio via `AVAudioPlayer`. Exposes `isPlaying` for transient cursor scheduling. |
 | `ElementLocationDetector.swift` | ~335 | Detects UI element locations in screenshots for cursor pointing. |
 | `DesignSystem.swift` | ~880 | Design system tokens — colors, corner radii, shared styles. All UI references `DS.Colors`, `DS.CornerRadius`, etc. |
 | `HeyyJAnalytics.swift` | ~121 | PostHog analytics integration for usage tracking. |
 | `WindowPositionManager.swift` | ~262 | Window placement logic, Screen Recording permission flow, and accessibility permission helpers. |
 | `AppBundleConfiguration.swift` | ~28 | Runtime configuration reader for keys stored in the app bundle Info.plist. |
-| `worker/src/index.ts` | ~313 | Cloudflare Worker proxy. Three routes: `/chat` (AI SDK + AI Gateway), `/tts` (Gemini TTS), `/transcribe-token` (AssemblyAI temp token). |
+| `worker/src/index.ts` | ~313 | Cloudflare Worker proxy. Three routes: `/chat` (AI SDK + AI Gateway), `/tts` (Gradium TTS), `/transcribe-token` (AssemblyAI temp token). |
 
 ## Build & Run
 
@@ -101,7 +101,7 @@ npm install
 # Add secrets
 npx wrangler secret put AI_GATEWAY_API_KEY
 npx wrangler secret put ASSEMBLYAI_API_KEY
-npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put GRADIUM_API_KEY
 
 # Deploy
 npx wrangler deploy

@@ -8,6 +8,7 @@ enum CompanionVoiceState {
     case idle
     case listening
     case processing
+    case agentWorking
     case responding
 }
 
@@ -90,11 +91,11 @@ final class CompanionManager: ObservableObject {
     private static let workerBaseURL = AppBundleConfiguration.serverBaseURL
 
     private lazy var aiSDK: AISDK = {
-        return AISDK(proxyURL: "\(Self.workerBaseURL)/chat", model: selectedModel)
+        return AISDK(proxyURL: "\(Self.workerBaseURL)/chat")
     }()
 
-    private lazy var elevenLabsTTSClient: ElevenLabsTTSClient = {
-        return ElevenLabsTTSClient(proxyURL: "\(Self.workerBaseURL)/tts")
+    private lazy var gradiumTTSClient: GradiumTTSClient = {
+        return GradiumTTSClient(proxyURL: "\(Self.workerBaseURL)/tts")
     }()
 
     
@@ -125,19 +126,11 @@ final class CompanionManager: ObservableObject {
     @Published private(set) var isOverlayVisible: Bool = false
 
     
-    @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedAIModel") ?? "openai/gpt-5.4-mini"
-
     @Published var selectedCursorColor: GlideCursorColor = GlideCursorColor(rawValue: UserDefaults.standard.string(forKey: "selectedCursorColor") ?? "") ?? .pink
 
     func setSelectedCursorColor(_ color: GlideCursorColor) {
         selectedCursorColor = color
         UserDefaults.standard.set(color.rawValue, forKey: "selectedCursorColor")
-    }
-
-    func setSelectedModel(_ model: String) {
-        selectedModel = model
-        UserDefaults.standard.set(model, forKey: "selectedAIModel")
-        aiSDK.model = model
     }
 
     
@@ -271,7 +264,7 @@ final class CompanionManager: ObservableObject {
 
 
     var isTTSPlaying: Bool {
-        elevenLabsTTSClient.isPlaying
+        gradiumTTSClient.isPlaying
     }
 
     func clearDetectedElementLocation() {
@@ -503,7 +496,7 @@ final class CompanionManager: ObservableObject {
 
             
             currentResponseTask?.cancel()
-            elevenLabsTTSClient.stopPlayback()
+            gradiumTTSClient.stopPlayback()
             clearDetectedElementLocation()
 
             
@@ -603,7 +596,7 @@ final class CompanionManager: ObservableObject {
     
     private func sendTranscriptToAISDKWithScreenshot(transcript: String) {
         currentResponseTask?.cancel()
-        elevenLabsTTSClient.stopPlayback()
+        gradiumTTSClient.stopPlayback()
 
         currentResponseTask = Task {
             
@@ -635,6 +628,10 @@ final class CompanionManager: ObservableObject {
                     userPrompt: transcript,
                     onTextChunk: { _ in
                         
+                    },
+                    onToolActivity: { [weak self] _, isRunning in
+                        guard let self else { return }
+                        self.voiceState = isRunning ? .agentWorking : .processing
                     }
                 )
 
@@ -660,12 +657,13 @@ final class CompanionManager: ObservableObject {
                 do {
                     if pointingSequence.isEmpty {
                         if !spokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            voiceState = .responding
                             try await speakAndWait(spokenText)
                         }
                     } else {
-                        voiceState = .idle
                         for step in pointingSequence {
                             guard !Task.isCancelled else { return }
+                            voiceState = .responding
                             applyPointingResult(step.point, screenCaptures: screenCaptures)
                             GlideAnalytics.trackElementPointed(elementLabel: step.point.elementLabel)
                             if let pointCoordinate = step.point.coordinate {
@@ -681,17 +679,15 @@ final class CompanionManager: ObservableObject {
                             try await Task.sleep(nanoseconds: trimmedSpeech.isEmpty ? 2_200_000_000 : 900_000_000)
 
                             if !trimmedSpeech.isEmpty {
-                                voiceState = .responding
                                 try await speakAndWait(trimmedSpeech)
                                 voiceState = .idle
                                 try await Task.sleep(nanoseconds: 350_000_000)
                             }
                         }
                     }
-                    voiceState = .responding
                 } catch {
                     GlideAnalytics.trackTTSError(error: error.localizedDescription)
-                    print("ElevenLabs TTS error: \(error)")
+                    print("Gradium TTS error: \(error)")
                 }
             } catch is CancellationError {
                 
@@ -718,7 +714,7 @@ final class CompanionManager: ObservableObject {
         transientHideTask?.cancel()
         transientHideTask = Task {
             
-            while elevenLabsTTSClient.isPlaying {
+            while gradiumTTSClient.isPlaying {
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 guard !Task.isCancelled else { return }
             }
@@ -758,8 +754,8 @@ final class CompanionManager: ObservableObject {
     }
 
     private func speakAndWait(_ text: String) async throws {
-        try await elevenLabsTTSClient.speakText(text)
-        while elevenLabsTTSClient.isPlaying {
+        try await gradiumTTSClient.speakText(text)
+        while gradiumTTSClient.isPlaying {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
     }

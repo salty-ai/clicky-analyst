@@ -6,12 +6,10 @@ class AISDK {
     private static var hasStartedTLSWarmup = false
 
     private let apiURL: URL
-    var model: String
     private let session: URLSession
 
-    init(proxyURL: String, model: String = "openai/gpt-5.4-mini") {
+    init(proxyURL: String) {
         self.apiURL = URL(string: proxyURL)!
-        self.model = model
 
         
         
@@ -104,7 +102,8 @@ class AISDK {
         systemPrompt: String,
         conversationHistory: [(userPlaceholder: String, assistantResponse: String)] = [],
         userPrompt: String,
-        onTextChunk: @MainActor @Sendable (String) -> Void
+        onTextChunk: @MainActor @Sendable (String) -> Void,
+        onToolActivity: (@MainActor @Sendable (_ toolName: String, _ isRunning: Bool) -> Void)? = nil
     ) async throws -> (text: String, duration: TimeInterval) {
         let startTime = Date()
 
@@ -139,7 +138,6 @@ class AISDK {
         messages.append(["role": "user", "content": contentBlocks])
 
         let body: [String: Any] = [
-            "model": model,
             "maxOutputTokens": 1024,
             "system": systemPrompt,
             "messages": messages
@@ -212,6 +210,12 @@ class AISDK {
                     $0.isEmpty ? nil : " \($0) "
                 } ?? " "
                 textChunk = " [POINT:\(x.intValue),\(y.intValue)\(label)\(screen)]\(description)"
+            } else if eventType == "tool-input-available",
+                      let toolName = eventPayload["toolName"] as? String {
+                await onToolActivity?(toolName, true)
+            } else if eventType == "tool-output-available",
+                      let toolName = eventPayload["toolName"] as? String {
+                await onToolActivity?(toolName, false)
             }
 
             if let textChunk {
@@ -263,7 +267,6 @@ class AISDK {
         messages.append(["role": "user", "content": contentBlocks])
 
         let body: [String: Any] = [
-            "model": model,
             "maxOutputTokens": 256,
             "system": systemPrompt,
             "messages": messages
