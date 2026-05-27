@@ -7,6 +7,7 @@ import SwiftUI
 enum CompanionVoiceState {
     case idle
     case listening
+    case readingScreen
     case processing
     case agentWorking
     case responding
@@ -426,7 +427,9 @@ final class CompanionManager: ObservableObject {
                 guard let self else { return }
                 
                 
-                guard self.voiceState != .responding else { return }
+                guard self.voiceState != .responding,
+                      self.voiceState != .readingScreen,
+                      self.voiceState != .agentWorking else { return }
 
                 if isFinalizing {
                     self.voiceState = .processing
@@ -600,13 +603,26 @@ final class CompanionManager: ObservableObject {
 
         currentResponseTask = Task {
             
-            voiceState = .processing
+            voiceState = .readingScreen
+            let readingScreenStartedAt = Date()
 
             do {
                 
                 let screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
 
                 guard !Task.isCancelled else { return }
+
+                // Screen capture can complete so quickly that SwiftUI never gets
+                // a visible frame to render the Dynamic Island feedback. Keep
+                // the state up briefly so users actually see "Reading screen".
+                let minimumReadingScreenDuration: TimeInterval = 0.85
+                let elapsedReadingScreenDuration = Date().timeIntervalSince(readingScreenStartedAt)
+                if elapsedReadingScreenDuration < minimumReadingScreenDuration {
+                    try await Task.sleep(nanoseconds: UInt64((minimumReadingScreenDuration - elapsedReadingScreenDuration) * 1_000_000_000))
+                    guard !Task.isCancelled else { return }
+                }
+
+                voiceState = .processing
 
                 
                 

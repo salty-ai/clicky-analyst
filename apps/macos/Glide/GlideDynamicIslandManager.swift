@@ -314,6 +314,10 @@ private struct GlideIslandRoot: View {
             let reactiveHeight = easedAudioPowerLevel * 8 * profile[index]
             let idlePulse = (sin(phase) + 1) / 2 * 1.2
             return 3 + reactiveHeight + idlePulse
+        case .readingScreen:
+            let phase = time * 3.2 + CGFloat(index) * 0.55
+            let wave = (sin(phase) + 1) / 2
+            return 3 + wave * 7
         case .processing:
             let phase = time * 2.4 + CGFloat(index) * 1.0
             let wave = (sin(phase) + 1) / 2
@@ -390,6 +394,11 @@ private struct GlideIslandRoot: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color(hex: "#4ADE80"))
                 .symbolEffect(.variableColor.iterative, isActive: true)
+        case .readingScreen:
+            Image(systemName: "rectangle.dashed")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color(hex: "#38BDF8"))
+                .symbolEffect(.pulse, isActive: true)
         case .processing:
             Image(systemName: "ellipsis")
                 .font(.system(size: 13, weight: .bold))
@@ -412,8 +421,10 @@ private struct GlideIslandRoot: View {
         switch companionManager.voiceState {
         case .idle: "Idle"
         case .listening: "Listening"
+        case .readingScreen: "Reading screen"
         case .processing: "Thinking"
-        case .agentWorking: "Agents on it"        case .responding: "Speaking"
+        case .agentWorking: "Agents on it"
+        case .responding: "Speaking"
         }
     }
 
@@ -421,6 +432,7 @@ private struct GlideIslandRoot: View {
         switch companionManager.voiceState {
         case .idle: .white.opacity(0.3)
         case .listening: Color(hex: "#4ADE80")
+        case .readingScreen: Color(hex: "#38BDF8")
         case .processing: Color(hex: "#A78BFA")
         case .agentWorking: Color(hex: "#F472B6")
         case .responding: Color(hex: "#60A5FA")
@@ -431,6 +443,7 @@ private struct GlideIslandRoot: View {
         switch companionManager.voiceState {
         case .idle: [.white.opacity(0.1), .white.opacity(0.2)]
         case .listening: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")]
+        case .readingScreen: [Color(hex: "#0284C7"), Color(hex: "#38BDF8")]
         case .processing: [Color(hex: "#7C3AED"), Color(hex: "#A78BFA")]
         case .agentWorking: [Color(hex: "#DB2777"), Color(hex: "#F472B6")]
         case .responding: [Color(hex: "#3B82F6"), Color(hex: "#60A5FA")]

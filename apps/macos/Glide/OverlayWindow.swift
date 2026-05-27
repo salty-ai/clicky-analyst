@@ -326,7 +326,7 @@ struct BlueCursorView: View {
 
             
             BlueCursorSpinnerView(cursorColor: cursorAccentColor)
-                .opacity(buddyIsVisibleOnThisScreen && (companionManager.voiceState == .processing || companionManager.voiceState == .agentWorking) ? cursorOpacity : 0)
+                .opacity(buddyIsVisibleOnThisScreen && (companionManager.voiceState == .readingScreen || companionManager.voiceState == .processing || companionManager.voiceState == .agentWorking) ? cursorOpacity : 0)
                 .position(cursorPosition)
                 .animation(.spring(response: 0.2, dampingFraction: 0.6, blendDuration: 0), value: cursorPosition)
                 .animation(.easeIn(duration: 0.15), value: companionManager.voiceState)

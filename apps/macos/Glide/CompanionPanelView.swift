@@ -1082,7 +1082,7 @@ struct CompanionPanelView: View {
             return DS.Colors.success
         case .listening:
             return DS.Colors.accentText
-        case .processing, .agentWorking, .responding:
+        case .readingScreen, .processing, .agentWorking, .responding:
             return DS.Colors.accentText
         }
     }
@@ -1099,6 +1099,8 @@ struct CompanionPanelView: View {
             return "Active"
         case .listening:
             return "Listening"
+        case .readingScreen:
+            return "Reading screen"
         case .processing:
             return "Processing"
         case .agentWorking:
