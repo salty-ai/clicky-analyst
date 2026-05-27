@@ -15,7 +15,6 @@
     "deploy:server": "turbo -F server deploy"
   },
   "dependencies": {
-    "@piksy/env": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
