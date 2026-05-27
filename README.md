@@ -20,7 +20,6 @@ The backend runs as a Cloudflare Worker and provides:
 apps/
   macos/    Native Swift/AppKit macOS app
   server/   Hono Cloudflare Worker API
-  web/      Astro web app / landing page
 packages/
   config/   Shared TypeScript config
 ```
@@ -109,12 +108,6 @@ Run the Worker API:
 pnpm run dev:server
 ```
 
-Run the web app:
-
-```bash
-pnpm run dev:web
-```
-
 Run all JS apps through Turborepo:
 
 ```bash
@@ -128,6 +121,5 @@ Open the macOS app from `apps/macos/Glide.xcodeproj` in Xcode and run the `Glide
 - `pnpm run dev` — start all configured apps in development mode
 - `pnpm run build` — build the monorepo
 - `pnpm run check-types` — TypeScript checks
-- `pnpm run dev:web` — start the Astro web app
 - `pnpm run dev:server` — start the Cloudflare Worker locally
 - `pnpm run deploy:server` — deploy the Worker
