@@ -14,11 +14,11 @@ Glide is a macOS menu bar companion that you talk to with push-to-talk. It captu
 
 The backend runs as a Cloudflare Worker and handles the stuff you don't want shipped inside the app binary:
 
-- authenticated chat streaming through the Vercel AI SDK AI Gateway
+- authenticated chat streaming through the Cloudflare Workers AI binding (personal mode) or the Vercel AI SDK AI Gateway
 - AssemblyAI realtime transcription token generation
 - Gradium text-to-speech proxying
 - Composio-powered agent integrations for connected apps like Notion, Google Docs, Gmail, Slack, GitHub, and more
-- Clerk authentication for the macOS app and server routes
+- Shared-secret (`APP_AUTH_SECRET`) or Clerk authentication for the macOS app and server routes
 
 ## Architecture
 
@@ -70,8 +70,8 @@ You'll want:
 
 - macOS with Xcode installed
 - Node.js / pnpm for the Worker and monorepo tooling
-- A Cloudflare account for the Worker
-- API keys for AI Gateway, Clerk, AssemblyAI, Gradium, and Composio
+- A Cloudflare account for the Worker (with Workers AI enabled)
+- A shared secret for `APP_AUTH_SECRET`; optionally API keys for AssemblyAI, Gradium, and Composio
 
 ## 1. Install dependencies
 
@@ -88,8 +88,9 @@ The Worker lives in `apps/server`.
 For local development, create `apps/server/.dev.vars`:
 
 ```bash
-AI_GATEWAY_API_KEY=...
-CLERK_SECRET_KEY=...
+APP_AUTH_SECRET=...           # shared Bearer token the macOS app sends
+
+# Optional integrations
 ASSEMBLYAI_API_KEY=...
 GRADIUM_API_KEY=...
 COMPOSIO_API_KEY=...
@@ -103,20 +104,19 @@ For deployed Workers, add secrets with Wrangler:
 
 ```bash
 cd apps/server
-npx wrangler secret put AI_GATEWAY_API_KEY
-npx wrangler secret put CLERK_SECRET_KEY
-npx wrangler secret put ASSEMBLYAI_API_KEY
-npx wrangler secret put GRADIUM_API_KEY
-npx wrangler secret put COMPOSIO_API_KEY
+npx wrangler secret put APP_AUTH_SECRET
+npx wrangler secret put ASSEMBLYAI_API_KEY   # optional
+npx wrangler secret put GRADIUM_API_KEY      # optional
+npx wrangler secret put COMPOSIO_API_KEY     # optional
 ```
 
 Notes:
 
-- `AI_GATEWAY_API_KEY` is used by `createGateway()` for model calls.
-- `CLERK_SECRET_KEY` is required by `@clerk/hono` to authenticate protected routes.
-- `ASSEMBLYAI_API_KEY` is used by `/transcribe-token`.
-- `GRADIUM_API_KEY` is used by `/tts`.
-- `COMPOSIO_API_KEY` enables connected-account lookup, toolkit auth links, and AI tools.
+- `APP_AUTH_SECRET` authenticates all protected routes. The Worker fails closed (401) if it is unset.
+- `ASSEMBLYAI_API_KEY` is used by `/transcribe-token`. When unset, the route returns 503 and the app falls back to the on-device Apple Speech provider.
+- `GRADIUM_API_KEY` is used by `/tts`. When unset, the route returns 503.
+- `COMPOSIO_API_KEY` enables connected-account lookup, toolkit auth links, and AI tools. App tools are unavailable on the personal Workers AI chat path — requests classified as needing them return 501.
+- The chat model comes from the Workers AI `[ai]` binding declared in `apps/server/wrangler.toml` — no AI Gateway key needed.
 
 ## 3. Run the Worker locally
 
@@ -228,6 +228,42 @@ Both are read from `apps/server/.dev.vars` during local development or from Wran
 A `gate=block` decision returns HTTP 400 `{ error: "blocked" }` without calling the model.
 
 You can disable the Jev call entirely by leaving `JEV_API_KEY` and `TYPESAFE_API_KEY` unset.
+
+## Personal deployment
+
+Personal deployment mode runs the Worker entirely on infrastructure you already own — no Clerk, no Vercel AI Gateway, no external LLM API key required for the core chat loop.
+
+### Authentication: `APP_AUTH_SECRET`
+
+All protected routes accept a single shared Bearer token:
+
+```bash
+cd apps/server
+npx wrangler secret put APP_AUTH_SECRET
+```
+
+The macOS app sends the same value as `Authorization: Bearer <token>` on every request. The server compares it in constant time against `env.APP_AUTH_SECRET` and fails closed (401) if the variable is unset. On success the request is scoped to `userId = "local"`, which is also the Composio entity key for any connected accounts.
+
+### Model: Cloudflare Workers AI binding
+
+`apps/server/wrangler.toml` declares:
+
+```toml
+[ai]
+binding = "AI"
+```
+
+`/chat` calls `env.AI.run(model, { messages, stream: true, max_tokens })` directly and translates the Workers AI SSE stream into the AI SDK UI message stream format (`start` → `text-start` → `text-delta` → `text-end` → `finish`, then `data: [DONE]`) that the Swift client parses.
+
+- Default model: `@cf/zai-org/glm-5.3`. Pass any other Workers AI model id in the request's `model` field to override.
+- The Jev classifier still runs in front of the model (if configured) and the analyst/system instructions still shape the prompt — they only affect `messages`, not the transport.
+- Composio app tools are **not** available in this mode: requests the classifier marks as `useAppTools` receive `501 { error: "tools unsupported with workers-ai model" }`.
+
+### Optional services
+
+- `ASSEMBLYAI_API_KEY` unset → `/transcribe-token` returns 503; use the on-device Apple Speech provider in the app.
+- `GRADIUM_API_KEY` unset → `/tts` returns 503.
+- `COMPOSIO_API_KEY` unset → `/integrations/*` returns 5xx and chat runs without app tools.
 
 ## Go crazy
 

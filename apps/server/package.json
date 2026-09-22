@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@clerk/hono": "^0.1.31",
     "@composio/core": "^0.10.0",
     "@composio/vercel": "^0.9.2",
     "ai": "^6.0.184",
