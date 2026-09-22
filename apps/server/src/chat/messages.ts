@@ -35,11 +35,40 @@ export function latestUserText(chatMessages: ChatMessage[]): string | undefined 
     return undefined;
   }
 
-  if (typeof latestUserMessage.content === "string") {
-    return latestUserMessage.content.trim() || undefined;
+  return messageText(latestUserMessage);
+}
+
+export function previousExchangeSummary(chatMessages: ChatMessage[]): string | undefined {
+  const latestUserIndex = chatMessages.findLastIndex((message) => message.role === "user");
+  if (latestUserIndex <= 0) {
+    return undefined;
   }
 
-  return latestUserMessage.content
+  const prior = chatMessages.slice(0, latestUserIndex);
+  const previousAssistant = prior.findLast((message) => message.role === "assistant");
+  const previousUser = prior.findLast((message) => message.role === "user");
+  if (!previousAssistant && !previousUser) {
+    return undefined;
+  }
+
+  const parts: string[] = [];
+  const userText = previousUser ? messageText(previousUser) : undefined;
+  const assistantText = previousAssistant ? messageText(previousAssistant) : undefined;
+  if (userText) {
+    parts.push(`user: ${userText}`);
+  }
+  if (assistantText) {
+    parts.push(`assistant: ${assistantText}`);
+  }
+  return parts.length ? parts.join(" | ") : undefined;
+}
+
+function messageText(message: ChatMessage): string | undefined {
+  if (typeof message.content === "string") {
+    return message.content.trim() || undefined;
+  }
+
+  return message.content
     .filter((block) => block.type === "text")
     .map((block) => block.text.trim())
     .filter(Boolean)

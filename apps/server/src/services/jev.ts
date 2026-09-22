@@ -29,6 +29,20 @@ const SUPPORTED_TOOLKITS = [
   "googleslides",
 ] as const;
 
+type SupportedToolkit = (typeof SUPPORTED_TOOLKITS)[number];
+
+const TOOLKIT_LABELS: Record<SupportedToolkit, string> = {
+  notion: "Notion",
+  googlecalendar: "Google Calendar",
+  googledocs: "Google Docs",
+  googledrive: "Google Drive",
+  googlesheets: "Google Sheets",
+  googleslides: "Google Slides",
+};
+
+const TOOLKIT_QUESTION_ID_PREFIX = "toolkit_";
+const STATE_SUMMARY_MAX_LENGTH = 280;
+
 const FALLBACK_INTENT: ChatIntent = {
   useAppTools: false,
   toolkits: [],
@@ -37,7 +51,26 @@ const FALLBACK_INTENT: ChatIntent = {
   gate: "allow",
 };
 
+function toolkitQuestion(toolkit: SupportedToolkit): ChoiceQuestion {
+  const label = TOOLKIT_LABELS[toolkit];
+  return {
+    type: "choice",
+    instructions: `Does the user explicitly mention or clearly imply ${label}? Answer yes only when the request should act inside ${label}.`,
+    criteria: {
+      yes: `The user mentions ${label} by name, or clearly asks to read, create, edit, search, send, schedule, or organize content inside ${label}.`,
+      no: `The user does not mention ${label} and the request does not require acting inside ${label}.`,
+    },
+  };
+}
+
 function buildQuestions(): Record<string, Question> {
+  const toolkitQuestions = Object.fromEntries(
+    SUPPORTED_TOOLKITS.map((toolkit) => [
+      `${TOOLKIT_QUESTION_ID_PREFIX}${toolkit}`,
+      toolkitQuestion(toolkit),
+    ])
+  );
+
   return {
     appTools: {
       type: "choice",
@@ -48,24 +81,7 @@ function buildQuestions(): Record<string, Question> {
         no: "The user is asking about screen pointing, cursor coordinates, navigation, visual UI help, or general chat, or does not ask to act inside an external connected app.",
       },
     },
-    toolkits: {
-      type: "choice",
-      instructions:
-        "Which supported connected toolkit, if any, is explicitly mentioned or implied by the user's request? Supported toolkits: Notion, Google Calendar, Google Docs, Google Drive, Google Sheets, Google Slides.",
-      criteria: {
-        notion: "The user mentions Notion or asks to act inside Notion.",
-        googlecalendar:
-          "The user mentions Google Calendar, Calendar events, or scheduling through Google Calendar.",
-        googledocs:
-          "The user mentions Google Docs, Docs, or Google Documents.",
-        googledrive:
-          "The user mentions Google Drive, Drive, or Google Drive files/folders.",
-        googlesheets:
-          "The user mentions Google Sheets, Sheets, or spreadsheets.",
-        googleslides:
-          "The user mentions Google Slides, Slides, or presentations.",
-      },
-    },
+    ...toolkitQuestions,
     analyst: {
       type: "choice",
       instructions:
@@ -98,7 +114,26 @@ function buildQuestions(): Record<string, Question> {
   };
 }
 
-function buildRequest(apiKey: string, latestUserText: string) {
+function truncateSummary(text: string): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= STATE_SUMMARY_MAX_LENGTH) {
+    return collapsed;
+  }
+  return `${collapsed.slice(0, STATE_SUMMARY_MAX_LENGTH - 1)}…`;
+}
+
+function buildRequest(
+  apiKey: string,
+  latestUserText: string,
+  previousExchangeSummary?: string
+) {
+  const state: Record<string, string> = { latestUserText };
+  if (previousExchangeSummary) {
+    const summary = truncateSummary(previousExchangeSummary);
+    if (summary) {
+      state.previousExchangeSummary = summary;
+    }
+  }
   return {
     url: "https://api.typesafe.ai/v1/systemone",
     headers: {
@@ -107,7 +142,7 @@ function buildRequest(apiKey: string, latestUserText: string) {
     },
     body: {
       model: "jev-latest",
-      state: { latestUserText },
+      state,
       questions: buildQuestions(),
     },
   };
@@ -129,6 +164,20 @@ function parseChoice(
   return allowed.includes(choice) ? choice : undefined;
 }
 
+function parseToolkits(answers: Record<string, unknown>): string[] {
+  const toolkits: string[] = [];
+  for (const toolkit of SUPPORTED_TOOLKITS) {
+    const choice = parseChoice(answers, `${TOOLKIT_QUESTION_ID_PREFIX}${toolkit}`, [
+      "yes",
+      "no",
+    ]);
+    if (choice === "yes") {
+      toolkits.push(toolkit);
+    }
+  }
+  return toolkits;
+}
+
 function parseIntent(json: unknown): ChatIntent | undefined {
   if (!json || typeof json !== "object") {
     return undefined;
@@ -136,7 +185,6 @@ function parseIntent(json: unknown): ChatIntent | undefined {
   const answers = ((json as Record<string, unknown>).answers ?? {}) as Record<string, unknown>;
 
   const useAppToolsRaw = parseChoice(answers, "appTools", ["yes", "no"]);
-  const toolkit = parseChoice(answers, "toolkits", SUPPORTED_TOOLKITS);
   const analystRaw = parseChoice(answers, "analyst", ["yes", "no"]);
   const verbosity = parseChoice(answers, "verbosity", ["brief", "normal", "deep"]);
   const gate = parseChoice(answers, "safety", ["allow", "block"]);
@@ -152,7 +200,7 @@ function parseIntent(json: unknown): ChatIntent | undefined {
 
   return {
     useAppTools: useAppToolsRaw === "yes",
-    toolkits: toolkit ? [toolkit] : [],
+    toolkits: parseToolkits(answers),
     isAnalystQuestion: analystRaw === "yes",
     answerVerbosity: verbosity as "brief" | "normal" | "deep",
     gate: gate as "allow" | "block",
@@ -176,7 +224,8 @@ export function jevApiKey(env: { JEV_API_KEY?: string; TYPESAFE_API_KEY?: string
 export async function classifyRequest(
   env: { JEV_API_KEY?: string; TYPESAFE_API_KEY?: string },
   latestUserText: string | undefined,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  options: { previousExchangeSummary?: string } = {}
 ): Promise<ChatIntent> {
   if (!latestUserText) {
     return FALLBACK_INTENT;
@@ -187,7 +236,7 @@ export async function classifyRequest(
     return regexFallback(latestUserText);
   }
 
-  const request = buildRequest(apiKey, latestUserText);
+  const request = buildRequest(apiKey, latestUserText, options.previousExchangeSummary);
 
   try {
     const controller = new AbortController();

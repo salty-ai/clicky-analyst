@@ -2,7 +2,7 @@ import { getAuth } from "@clerk/hono";
 import { createGateway, stepCountIs, streamText } from "ai";
 import type { Context } from "hono";
 import { withAgentInstructions, withAnalystInstructions, withPointerToolInstructions } from "../chat/instructions";
-import { latestUserText, toGatewayModelId, toModelMessages } from "../chat/messages";
+import { latestUserText, previousExchangeSummary, toGatewayModelId, toModelMessages } from "../chat/messages";
 import { classifyRequest } from "../services/jev";
 import { getToolsForUser } from "../services/composio";
 import type { AppContext, ChatRequestBody } from "../types";
@@ -15,7 +15,10 @@ export async function handleChat(c: Context<AppContext>): Promise<Response> {
   const model = gateway(toGatewayModelId(chatRequestBody.model));
   const messages = toModelMessages(chatRequestBody.messages ?? []);
   const latestUserRequest = latestUserText(chatRequestBody.messages ?? []);
-  const intent = await classifyRequest(env, latestUserRequest);
+  const priorExchange = previousExchangeSummary(chatRequestBody.messages ?? []);
+  const intent = await classifyRequest(env, latestUserRequest, fetch, {
+    previousExchangeSummary: priorExchange,
+  });
   if (intent.gate === "block") {
     return c.json({ error: "blocked" }, 400);
   }
