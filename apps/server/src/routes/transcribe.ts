@@ -1,6 +1,18 @@
 import type { Env } from "../types";
 
 export async function handleTranscribeToken(env: Env): Promise<Response> {
+  if (!env.ASSEMBLYAI_API_KEY) {
+    return new Response(
+      JSON.stringify({
+        error: "transcription not configured — use the on-device Apple Speech provider in the app",
+      }),
+      {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      }
+    );
+  }
+
   const response = await fetch(
     "https://streaming.assemblyai.com/v3/token?expires_in_seconds=480",
     {
