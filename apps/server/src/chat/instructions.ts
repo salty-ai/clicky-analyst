@@ -51,6 +51,21 @@ pointing tags:
   return system ? `${system}${instructions}` : instructions.trim();
 }
 
+export function withAnalystInstructions(
+  system: string | undefined,
+  context: { verbosity?: "brief" | "normal" | "deep" } = {}
+): string {
+  const instructions = `
+
+analyst mode (answering about the user's screen):
+- Structure your answer in three parts: a direct answer first, then the key evidence visible on the screen, then implications or recommendations.
+- Quote concrete numbers, labels, code identifiers, or other exact text from the visible content when possible.
+- Prefer deep, multi-angle analysis when the question warrants it; keep the answer speakable because it will be read aloud.
+- ${context.verbosity === "brief" ? "Keep the answer concise." : context.verbosity === "deep" ? "Provide thorough detail and explore multiple relevant angles." : "Provide a balanced amount of detail."}`;
+
+  return system ? `${system}${instructions}` : instructions.trim();
+}
+
 export function withAgentInstructions(
   system: string | undefined,
   context: { hasAppTools?: boolean; activeToolkits?: string[]; latestUserRequest?: string } = {}

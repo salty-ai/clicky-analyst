@@ -203,6 +203,32 @@ Open the macOS app from `apps/macos/Glide.xcodeproj` in Xcode and run the `Glide
 - `pnpm run dev:server` — start the Cloudflare Worker locally
 - `pnpm run deploy:server` — deploy the Worker
 
+## Jev integration
+
+The server can classify incoming chat requests with [Jev](https://typesafe.ai) through the TypeSafe direct API before building the model stream. This decides:
+
+- whether to load Composio app integration tools (`useAppTools`)
+- which connected toolkit the user is asking about (`toolkits`)
+- whether the question is asking for analysis of visible screen content (`isAnalystQuestion`)
+- how detailed the spoken answer should be (`answerVerbosity`)
+- whether the request should be blocked (`gate`)
+
+When analyst mode is triggered, the system prompt is extended with instructions to structure the answer as direct answer → evidence → implications, quote concrete visible details, and keep the response speakable.
+
+Required environment variables:
+
+```bash
+JEV_API_KEY=...              # primary
+# or
+TYPESAFE_API_KEY=...         # alias
+```
+
+Both are read from `apps/server/.dev.vars` during local development or from Wranger secrets in production. If neither key is set, Jev is skipped and the classifier falls back to the existing regex helpers in `apps/server/src/chat/instructions.ts`.
+
+A `gate=block` decision returns HTTP 400 `{ error: "blocked" }` without calling the model.
+
+You can disable the Jev call entirely by leaving `JEV_API_KEY` and `TYPESAFE_API_KEY` unset.
+
 ## Go crazy
 
 Tweak the details, overhaul the design, or construct something uniquely yours

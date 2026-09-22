@@ -7,6 +7,8 @@ export interface Env {
   COMPOSIO_API_KEY: string;
   CLERK_SECRET_KEY: string;
   CLERK_PUBLISHABLE_KEY?: string;
+  JEV_API_KEY?: string;
+  TYPESAFE_API_KEY?: string;
 }
 
 export type AppContext = {
