@@ -3,7 +3,7 @@ import type { ChatContentBlock, ChatMessage } from "../types";
 
 export function toGatewayModelId(model: string | undefined): string {
   if (!model) {
-    return "openai/gpt-5.4-mini";
+    return "@cf/zai-org/glm-5.3";
   }
 
   if (model.includes("/")) {
