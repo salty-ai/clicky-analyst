@@ -1,13 +1,9 @@
-import { getAuth } from "@clerk/hono";
 import type { Context } from "hono";
 import { composioErrorSummary, isComposioAuthError, listConnectedAccounts, makeComposio } from "../services/composio";
 import type { AppContext } from "../types";
 
 export async function handleToolkitStatuses(c: Context<AppContext>): Promise<Response> {
-  const { userId } = getAuth(c);
-  if (!userId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const userId = c.get("userId");
 
   const body = await c.req.json().catch(() => ({})) as { toolkits?: unknown };
   const toolkits = Array.isArray(body.toolkits)
@@ -60,10 +56,7 @@ export async function handleToolkitStatuses(c: Context<AppContext>): Promise<Res
 }
 
 export async function handleToolkitConnect(c: Context<AppContext>): Promise<Response> {
-  const { userId } = getAuth(c);
-  if (!userId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const userId = c.get("userId");
 
   const toolkit = toolkitParam(c);
   const composio = makeComposio(c.env);
@@ -98,10 +91,7 @@ export async function handleToolkitConnect(c: Context<AppContext>): Promise<Resp
 }
 
 export async function handleToolkitDisconnect(c: Context<AppContext>): Promise<Response> {
-  const { userId } = getAuth(c);
-  if (!userId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const userId = c.get("userId");
 
   const toolkit = toolkitParam(c);
   const composio = makeComposio(c.env);

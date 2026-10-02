@@ -16,8 +16,8 @@ export async function handleTTS(request: Request, env: Env): Promise<Response> {
   }
 
   if (!env.GRADIUM_API_KEY) {
-    return new Response(JSON.stringify({ error: "Missing GRADIUM_API_KEY" }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: "TTS not configured — GRADIUM_API_KEY is unset" }), {
+      status: 503,
       headers: { "content-type": "application/json" },
     });
   }

@@ -1,4 +1,3 @@
-import { clerkMiddleware } from "@clerk/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
@@ -22,11 +21,6 @@ app.use(
     allowMethods: ["DELETE", "GET", "POST", "OPTIONS"],
   })
 );
-
-app.use("/chat", clerkMiddleware());
-app.use("/integrations/*", clerkMiddleware());
-app.use("/tts", clerkMiddleware());
-app.use("/transcribe-token", clerkMiddleware());
 
 app.post("/chat", requireAuth, (c) => handleChat(c));
 app.post("/integrations/statuses", requireAuth, (c) => handleToolkitStatuses(c));

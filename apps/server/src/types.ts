@@ -1,16 +1,20 @@
 export interface Env {
-  AI_GATEWAY_API_KEY: string;
-  GRADIUM_API_KEY: string;
+  APP_AUTH_SECRET: string;
+  AI: Ai;
+  GRADIUM_API_KEY?: string;
   GRADIUM_TTS_VOICE_ID?: string;
   GRADIUM_TTS_MODEL?: string;
-  ASSEMBLYAI_API_KEY: string;
-  COMPOSIO_API_KEY: string;
-  CLERK_SECRET_KEY: string;
-  CLERK_PUBLISHABLE_KEY?: string;
+  ASSEMBLYAI_API_KEY?: string;
+  COMPOSIO_API_KEY?: string;
+  JEV_API_KEY?: string;
+  TYPESAFE_API_KEY?: string;
 }
 
 export type AppContext = {
   Bindings: Env;
+  Variables: {
+    userId: string;
+  };
 };
 
 export type ChatMessage = {
